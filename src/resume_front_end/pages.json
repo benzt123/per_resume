@@ -1,0 +1,112 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "我的经历档案"
+			}
+		},
+		{
+			"path": "pages/add/add",
+			"style": {
+				"navigationBarTitleText": "记一笔"
+			}
+		},
+		{
+			"path": "pages/statistics/statistics",
+			"style": {
+				"navigationBarTitleText": "统计"
+			}
+		},
+		{
+			"path": "pages/ai-config/ai-config",
+			"style": {
+				"navigationBarTitleText": "智能体配置"
+			}
+		},
+		{
+			"path": "pages/voice-config/voice-config",
+			"style": {
+				"navigationBarTitleText": "语音识别配置"
+			}
+		},
+		{
+			"path": "pages/chat/chat",
+			"style": {
+				"navigationBarTitleText": "AI小助手"
+			}
+		},
+		{
+			"path": "pages/profile/profile",
+			"style": {
+				"navigationBarTitleText": "我的"
+			}
+		},
+		{
+			"path" : "pages/message/message",
+			"style" : 
+			{
+				"navigationBarTitleText" : "基本信息"
+			}
+		},
+		{
+			"path" : "pages/Make_presume/Make_presume",
+			"style" : 
+			{
+				"navigationBarTitleText" : "生成简历"
+			}
+		},
+		{
+			"path" : "pages/Mypresume/Mypresume",
+			"style" : 
+			{
+				"navigationBarTitleText" : "我的简历"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "white",
+		"navigationBarTitleText": "简历生成器",
+		"navigationBarBackgroundColor": "#007AFF",
+		"backgroundColor": "#F5F5F5",
+		"app-plus": {
+			"bounce": "none"
+		}
+	},
+	"tabBar": {
+		"color": "#999999",
+		"selectedColor": "#007AFF", 
+		"backgroundColor": "#ffffff",
+		"borderStyle": "white",
+		"position": "bottom",
+		"height": "50px",
+		"fontSize": "12px",
+		"list": [
+			{
+				"pagePath": "pages/index/index",
+				"text": "首页",
+				"iconPath": "static/tab-home.png",
+				"selectedIconPath": "static/tab-home-active.png"
+			},
+			{
+				"pagePath": "pages/chat/chat",
+				"text": "AI小助手",
+				"iconPath": "static/tab-chat.png",
+				"selectedIconPath": "static/tab-chat-active.png"
+			},
+			{
+				"pagePath": "pages/statistics/statistics", 
+				"text": "能力图",
+				"iconPath": "static/tab-stats.png",
+				"selectedIconPath": "static/tab-stats-active.png"
+			},
+			{
+				"pagePath": "pages/profile/profile",
+				"text": "我的",
+				"iconPath": "static/tab-profile.png",
+				"selectedIconPath": "static/tab-profile-active.png"
+			}
+		]
+	},
+	"uniIdRouter": {}
+}
