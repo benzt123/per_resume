@@ -33,6 +33,10 @@
               <span class="delete-icon">×</span>
               <span class="delete-text">删除</span>
             </button>
+            <button class="delete-btn" @click="previewResume(index)">
+              <span class="delete-icon">look</span>
+              <span class="delete-text">查看修改</span>
+            </button>
           </div>
         </div>
       </div>
@@ -61,28 +65,33 @@ const loadResumes = () => {
       date: '2025/9/20', 
       img: '/static/tab-chat.png',
       title: 'xxx科研实习简历',
-      imgLoaded: false
+      imgLoaded: false,
+      // markdown 内容（示例），真实场景请在生成简历时保存 markdown
+      markdown: `# xxx科研实习简历\n\n**姓名**：张三\n\n## 教育背景\n- 2019 - 2023 某某大学` 
     },
     { 
       id: '2',
       date: '2025/8/20', 
       img: '/static/tab-chat.png',
       title: 'xxx职位简历',
-      imgLoaded: false
+      imgLoaded: false,
+      markdown: `# xxx职位简历\n\n**姓名**：李四\n\n## 求职意向\n- 前端工程师` 
     },
     { 
       id: '3',
       date: '2025/4/2', 
       img: '/static/tab-chat.png',
       title: 'xx公司xx岗位简历（2）',
-      imgLoaded: false
+      imgLoaded: false,
+      markdown: `# xx公司xx岗位简历（2）\n\n**姓名**：王五\n\n## 项目经验\n- 项目 A` 
     },
     { 
       id: '4',
       date: '2025/4/1', 
       img: '/static/tab-chat.png',
       title: 'xx公司xx岗位简历（1）',
-      imgLoaded: false
+      imgLoaded: false,
+      markdown: `# xx公司xx岗位简历（1）\n\n**姓名**：赵六\n\n## 技能\n- JavaScript / Vue` 
     }
   ]
   resumes.value = savedResumes
@@ -92,7 +101,6 @@ const loadResumes = () => {
 const saveResumes = () => {
   uni.setStorageSync('myResumes', resumes.value)
 }
-
 // 删除简历
 const deleteResume = (index) => {
   uni.showModal({
@@ -165,10 +173,37 @@ const downloadImage = (url, title) => {
   }
 }
 
+// 预览并编辑简历：把对应的 markdown 内容写入临时存储，然后跳转到 markdown 编辑页面
+const previewResume = (index) => {
+  const item = resumes.value[index]
+  const storageKey = 'editingResume'
+  const content = item.markdown || ''
+
+  // uni-app 环境使用 uni storage，否则 fallback 到 localStorage（浏览器）
+  if (typeof uni !== 'undefined' && uni.setStorageSync) {
+    try {
+      uni.setStorageSync(storageKey, { id: item.id, index, markdown: content, title: item.title })
+    } catch (e) { console.warn('setStorageSync failed', e) }
+  } else if (typeof localStorage !== 'undefined') {
+    try { localStorage.setItem(storageKey, JSON.stringify({ id: item.id, index, markdown: content, title: item.title })) } catch (e) { console.warn('localStorage setItem failed', e) }
+  }
+  else {
+    console.warn('No storage mechanism available for saving editingResume')
+  }
+
+  // 跳转到 markdown 编辑页（uni-app）
+  if (typeof uni !== 'undefined' && uni.navigateTo) {
+    uni.navigateTo({ url: '/pages/markdown/markdown' })
+  } else if (typeof window !== 'undefined') {
+    // SPA fallback — 尝试跳转到可能的 hash 路径（根据项目路由可调整）
+    window.location.href = '/#/pages/markdown/markdown'
+  }
+}
 // 页面加载时从本地存储读取数据
 onMounted(() => {
   loadResumes()
 })
+
 </script>
 
 <style scoped>

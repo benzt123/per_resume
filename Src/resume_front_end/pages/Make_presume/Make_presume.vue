@@ -43,7 +43,7 @@ export default {
 
 			// 跳转到 My_presume.vue
 			uni.navigateTo({
-				url: '/pages/My_presume/My_presume'
+				url: '/pages/Mypresume/Mypresume'
 			})
 		}
 	}

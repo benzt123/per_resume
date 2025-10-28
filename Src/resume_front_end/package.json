@@ -1,28 +1,17 @@
 {
-  "name": "simple-account-v1.0.4",
+  "name": "per_resume",
   "version": "1.0.0",
-  "description": "<p align=\"center\">   <img src=\"unpackage/res/icons/1024x1024.png\" width=\"120\" alt=\"简帐应用图标\"> </p>",
-  "main": "main.js",
+  "description": "UniApp resume - H5 template",
   "scripts": {
-    "dev": "uni -p h5",
-    "dev:h5": "uni -p h5",
-    "dev:mp-weixin": "uni -p mp-weixin",
-    "dev:app": "uni -p app",
-    "build:h5": "uni build -p h5",
-    "build:mp-weixin": "uni build -p mp-weixin",
-    "build:app": "uni build -p app",
-    "serve": "uni -p h5",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "@dcloudio/uni-cli-shared": "^2.0.0",
-    "@dcloudio/uni-h5": "^2.0.0",
-    "@dcloudio/uni-mp-weixin": "^2.0.0"
+    "install": "echo 'Install dependencies via npm if needed'",
+    "dev:h5": "echo 'Use HBuilderX to run H5. This script is a placeholder.'"
   },
   "dependencies": {
-    "@dcloudio/uni-app": "^2.0.0"
+    "markdown-it": "^13.0.1",
+    "katex": "^0.16.8",
+    "highlight.js": "^11.9.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
+    "latex.js": "^0.12.6"
   }
 }
