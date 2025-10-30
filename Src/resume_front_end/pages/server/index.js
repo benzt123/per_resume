@@ -8,6 +8,8 @@ const pool = require('./db'); // 引入数据库连接池
 const { extractText } = require('./extractor');
 const { analyzeWithQwen } = require('./ai');
 
+
+
 const app = express();
 // CORS 配置
 app.use(cors({
@@ -480,6 +482,53 @@ app.get('/api/experience/list', async (req, res) => {
     res.status(500).json({ error: '查询失败' });
   }
 });
+
+// ===== 新增：一键生成简历 API =====
+const { generateResumeWithAI } = require('./aiResume');
+
+app.post('/api/generate-resume', async (req, res) => {
+  const { job } = req.body;
+  if (!job?.trim()) {
+    return res.status(400).json({ error: '岗位名称不能为空' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    // 1. 获取用户 profile（取最新一条）
+    const [profileRows] = await connection.execute(
+      'SELECT name, phone, email, school, education, graduation_year, gpa FROM profile ORDER BY id DESC LIMIT 1'
+    );
+    if (profileRows.length === 0) {
+      return res.status(400).json({ error: '请先完善个人基本信息' });
+    }
+    const profile = profileRows[0];
+
+    // 2. 获取高置信度经历
+    const [expRows] = await connection.execute(
+      'SELECT category, summary, confidence FROM experience WHERE confidence > 0.7 ORDER BY confidence DESC'
+    );
+
+    // 3. 调用 AI 生成完整简历
+    const markdown = await generateResumeWithAI(job, profile, expRows);
+
+    // 4. 返回结果
+    res.json({
+      id: `resume_${Date.now()}`,
+      title: `${job}简历`,
+      date: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
+      markdown
+    });
+
+  } catch (err) {
+    console.error('生成简历失败:', err);
+    res.status(500).json({ error: err.message || '生成失败，请重试' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+// ===== 新增结束 =====
 
 // 删除一条经历
 app.delete('/api/experience/:id', async (req, res) => {

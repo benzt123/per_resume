@@ -30,7 +30,7 @@ export default {
 		},
 
 		// 一键生成逻辑
-		handleGenerate() {
+		async handleGenerate() {
 			if (!this.job) {
 				uni.showToast({
 					title: '请输入岗位名称',
@@ -40,11 +40,30 @@ export default {
 			}
 			// TODO: 这里可以加入生成逻辑
 			console.log('生成简历岗位：', this.job)
+			uni.showLoading({ title: 'AI 正在生成...' });
 
-			// 跳转到 My_presume.vue
-			uni.navigateTo({
-				url: '/pages/Mypresume/Mypresume'
-			})
+			try {
+				const res = await uni.request({
+				url: 'http://localhost:3000/api/generate-resume',
+				method: 'POST',
+				header: { 'Content-Type': 'application/json' },
+				data:{job: this.job },
+				});
+
+				if (res.statusCode !== 200) throw new Error(res.data?.error || '请求失败');
+
+				// 保存到本地
+				const resumes = uni.getStorageSync('myResumes') || [];
+				resumes.unshift(res.data);
+				uni.setStorageSync('myResumes', resumes);
+
+				uni.showToast({ title: '生成成功！', icon: 'success' });
+				setTimeout(() => uni.navigateTo({ url: '/pages/Mypresume/Mypresume' }), 1000);
+			} catch (err) {
+				uni.showToast({ title: err.message || '生成失败', icon: 'none' });
+			} finally {
+				uni.hideLoading();
+			}
 		}
 	}
 }
