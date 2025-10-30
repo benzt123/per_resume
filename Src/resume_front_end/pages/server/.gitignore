@@ -1,0 +1,4 @@
+uploads/*.*
+uploads/ai_files/*
+uploads/avatars/*
+*.traineddata

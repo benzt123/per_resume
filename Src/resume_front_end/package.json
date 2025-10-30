@@ -7,11 +7,21 @@
     "dev:h5": "echo 'Use HBuilderX to run H5. This script is a placeholder.'"
   },
   "dependencies": {
-    "markdown-it": "^13.0.1",
-    "katex": "^0.16.8",
+    "@shelf/aws-lambda-tesseract": "^5.2.0",
+    "axios": "^1.13.0",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "docx-parser": "^0.2.1",
+    "express": "^5.1.0",
     "highlight.js": "^11.9.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
-    "latex.js": "^0.12.6"
+    "katex": "^0.16.8",
+    "latex.js": "^0.12.6",
+    "markdown-it": "^13.0.1",
+    "multer": "^2.0.2",
+    "mysql2": "^3.15.3",
+    "pdf-parse": "^2.4.5",
+    "tesseract.js": "^6.0.1"
   }
 }

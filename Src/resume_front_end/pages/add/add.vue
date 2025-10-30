@@ -2,7 +2,7 @@
 	<view class="container">
 		<!-- 页面标题 -->
 		<view class="page-header">
-			<text class="page-title">{{isEditMode ? '编辑经历' : '添加经历'}}</text>
+			<text class="page-title"> '添加经历'</text>
 		</view>
 		
 		<!-- 文件上传区域 -->
@@ -81,57 +81,54 @@
 		
 		<!-- 保存按钮 -->
 		<view class="save-section">
-			<button class="save-btn" @click="saveRecord" :disabled="!canSave">
-				{{isEditMode ? '更新经历' : '保存经历'}}
-			</button>
+		  <button class="save-btn" @click="saveRecord" :disabled="!canSave">
+		    保存经历
+		  </button>
+		  <view class="status-info" style="font-size: 12px; color: #666; text-align: center; margin-top: 10rpx;">
+		    状态: {{canSave ? '可保存' : '不可保存'}} | 
+		    文件: {{selectedFile ? '✓' : '✗'}} | 
+		    AI分析: {{aiClassification ? '✓' : '✗'}}
+		  </view>
 		</view>
 	</view>
 </template>
 
 <script>
+	const API_BASE = 'http://localhost:3000';
 	export default {
-		data() {
-			return {
-				selectedFile: null,
-				startDate: '',
-				endDate: '',
-				note: '',
-				dragOver: false,
-				isEditMode: false,
-				editingRecordId: null,
-				aiClassification: null,
-				// 经历分类选项
-				experienceCategories: [
-					{id: 1, name: '学生工作', icon: '👥'},
-					{id: 2, name: '科研项目', icon: '🔬'},
-					{id: 3, name: '实习经历', icon: '💼'},
-					{id: 4, name: '荣誉奖励', icon: '🏆'}
-				]
-			}
-		},
+	data() {
+	    return {
+	      //本地显示字段
+	      selectedFile: null,
+	      startDate: '',
+	      endDate: '',
+	      note: '',
+	      dragOver: false,
+	      editingRecordId: null,
+	      aiClassification: null,
+	      experienceCategories: [
+	        { id: 1, name: '学生工作', icon: '👥' },
+	        { id: 2, name: '科研项目', icon: '🔬' },
+	        { id: 3, name: '实习经历', icon: '💼' },
+	        { id: 4, name: '荣誉奖励', icon: '🏆' }
+	      ],
+	    };
+	  },
+
 		
 		computed: {
 			canSave() {
-				return this.selectedFile && this.startDate
+				return this.selectedFile && this.startDate&& this.aiClassification
 			}
 		},
 		
 		onLoad(options) {
-			if (options && options.editId) {
-				this.isEditMode = true
-				this.editingRecordId = options.editId
-				uni.setNavigationBarTitle({
-					title: '编辑经历'
-				})
-				this.loadEditRecord(options.editId)
-			} else {
 				uni.setNavigationBarTitle({
 					title: '添加经历'
 				})
 				// 设置默认开始时间为当前时间
 				const now = new Date()
 				this.startDate = this.formatDateForPicker(now)
-			}
 		},
 		
 		methods: {
@@ -159,56 +156,73 @@
 				}
 			},
 			
-			// 使用AI处理文件并分类
 			async processFileWithAI(file) {
-				// 显示加载状态
-				uni.showLoading({
-					title: 'AI分析中...'
-				})
-				
-				try {
-					// 这里调用后端AI接口进行文件分析和分类
-					const classification = await this.callAIClassificationAPI(file)
-					this.aiClassification = classification
-					
-					uni.hideLoading()
-					uni.showToast({
-						title: 'AI分析完成',
-						icon: 'success'
-					})
-				} catch (error) {
-					uni.hideLoading()
-					uni.showToast({
-						title: 'AI分析失败',
-						icon: 'error'
-					})
-					console.error('AI分析失败:', error)
-				}
+			  try {
+			    // 调用AI分析，但不保存
+			    const classification = await this.callAIClassificationAPI(file)
+			
+			    // 只更新页面显示，不保存到数据库
+			    this.aiClassification = {
+			      category: classification.category,
+			      summary: classification.summary,
+			      confidence: classification.confidence || null
+			    }
+			
+			    uni.showToast({ title: 'AI分析完成', icon: 'success' })
+			  } catch (error) {
+			    uni.showToast({ title: 'AI分析失败', icon: 'error' })
+			    console.error('AI分析失败:', error)
+			  }
 			},
 			
-			// 调用AI分类API（需要对接后端）
+			// 调用AI分类API（只分析，不保存）
 			async callAIClassificationAPI(file) {
-				// 模拟AI分类结果 - 实际项目中这里需要调用真实的后端API
-				return new Promise((resolve) => {
-					setTimeout(() => {
-						// 模拟AI分析结果
-						const categories = ['学生工作', '科研项目', '实习经历', '荣誉奖励']
-						const randomCategory = categories[Math.floor(Math.random() * categories.length)]
-						
-						const summaries = {
-							'学生工作': '担任学生干部，组织校园活动，展现领导力和组织能力',
-							'科研项目': '参与学术研究项目，具备科研能力和创新思维',
-							'实习经历': '在企业实习，积累工作经验，提升职业素养',
-							'荣誉奖励': '获得表彰奖励，证明优秀表现和突出成就'
-						}
-						
-						resolve({
-							category: randomCategory,
-							summary: summaries[randomCategory],
-							confidence: (Math.random() * 0.3 + 0.7).toFixed(2) // 70%-100%的置信度
-						})
-					}, 1500)
-				})
+			  return new Promise((resolve, reject) => {
+			    uni.showLoading({ title: 'AI分析中...' });
+			
+			    uni.uploadFile({
+			      url: `${API_BASE}/api/ai/classify`,
+			      filePath: file.path || file.tempFilePath || file,
+			      name: 'file',
+			      success: (uploadRes) => {
+			        let payload;
+			        try {
+			          payload = JSON.parse(uploadRes.data);
+			        } catch (e) {
+			          uni.hideLoading();
+			          return reject(new Error('后端返回不是 JSON：' + String(uploadRes.data).slice(0, 200)));
+			        }
+			
+			        // HTTP 200 -> 期望 { success: true, data: {...} }
+			        if (uploadRes.statusCode === 200 && payload && payload.success) {
+			          const first = Array.isArray(payload.data?.experiences)
+			            ? payload.data.experiences[0]
+			            : payload.data;
+			          if (!first || !first.category || !first.summary) {
+			            uni.hideLoading();
+			            return reject(new Error('AI 未返回有效的 category/summary'));
+			          }
+			          uni.hideLoading();
+			          
+			          // 只返回分析结果，不保存到数据库
+			          return resolve({
+			            category: first.category,
+			            summary: first.summary,
+			            confidence: (typeof first.confidence === 'number') ? first.confidence : null
+			          });
+			        }
+			
+			        // 非 200 或 success=false -> 显示后端 details
+			        const backendMsg = payload?.details || payload?.error || `HTTP ${uploadRes.statusCode}`;
+			        uni.hideLoading();
+			        return reject(new Error(backendMsg));
+			      },
+			      fail: (err) => {
+			        uni.hideLoading();
+			        reject(new Error('上传失败：' + (err?.errMsg || '未知错误')));
+			      }
+			    });
+			  });
 			},
 			
 			// 移除文件
@@ -261,91 +275,65 @@
 				}
 			},
 			
+			
 			// 保存记录
 			saveRecord() {
-				if (!this.canSave) {
-					uni.showToast({
-						title: '请上传文件并选择开始时间',
-						icon: 'none'
-					})
-					return
-				}
-				
-				if (this.isEditMode) {
-					this.updateRecord()
-				} else {
-					this.createRecord()
-				}
+			  console.log('点击保存按钮，当前状态:', {
+			    canSave: this.canSave,
+			    selectedFile: !!this.selectedFile,
+			    startDate: this.startDate,
+			    aiClassification: this.aiClassification
+			  });
+			  
+			  if (!this.canSave) {
+			    uni.showToast({
+			      title: '请上传文件并等待AI分析完成',
+			      icon: 'none'
+			    })
+			    return;
+			  }
+			  
+			  console.log('开始保存到数据库...');
+			  this.createRecord()
+			
 			},
 			
 			// 创建新记录
-			createRecord() {
-				const record = {
-					id: Date.now().toString(),
-					fileName: this.selectedFile.name,
-					fileSize: this.selectedFile.size,
-					fileType: this.selectedFile.type || this.getFileType(this.selectedFile.name),
-					startDate: this.startDate,
-					endDate: this.endDate,
-					note: this.note.trim(),
-					category: this.aiClassification ? this.aiClassification.category : '未分类',
-					summary: this.aiClassification ? this.aiClassification.summary : '等待AI分析',
-					createdTime: new Date().toISOString(),
-					// 文件内容（实际项目中可能需要上传到服务器）
-					fileContent: '文件已上传，等待进一步处理' // 这里可以存储文件路径或内容
-				}
-				
-				// 保存到本地存储
-				const records = uni.getStorageSync('experienceRecords') || []
-				records.push(record)
-				uni.setStorageSync('experienceRecords', records)
-				
-				uni.showToast({
-					title: '经历已保存',
-					icon: 'success'
-				})
-				
-				setTimeout(() => {
-					uni.navigateBack()
-				}, 1500)
+			async createRecord() {
+			  // 从AI分析结果获取数据
+			  const category = this.aiClassification?.category || '未分类';
+			  const summary = this.aiClassification?.summary || '等待AI分析';
+			  const confidence = (typeof this.aiClassification?.confidence === 'number')
+			    ? this.aiClassification.confidence
+			    : null;
+			
+			  console.log('准备保存到数据库:', { category, summary, confidence });
+			
+			  try {
+			    uni.showLoading({ title: '保存中...' });
+			    //调用保存API
+			    const res = await uni.request({
+			      url: `${API_BASE}/api/experience/add`,
+			      method: 'POST',
+			      header: { 'Content-Type': 'application/json' },
+			      data: { category, summary, confidence }
+			    });
+			
+			    uni.hideLoading();
+			    console.log('保存成功，响应:', res);
+			    uni.showToast({ title: '经历已保存', icon: 'success' });
+			
+			    // 延时返回
+			    setTimeout(() => {
+			      uni.navigateBack();
+			    }, 1500);
+			  } catch (e) {
+			    uni.hideLoading();
+			    console.error('创建失败：', e);
+			    uni.showToast({ title: '保存失败', icon: 'none' });
+			  }
 			},
 			
-			// 更新记录
-			updateRecord() {
-				const records = uni.getStorageSync('experienceRecords') || []
-				const recordIndex = records.findIndex(item => item.id == this.editingRecordId)
-				
-				if (recordIndex === -1) {
-					uni.showToast({
-						title: '记录不存在',
-						icon: 'error'
-					})
-					return
-				}
-				
-				const updatedRecord = {
-					...records[recordIndex],
-					fileName: this.selectedFile.name,
-					fileSize: this.selectedFile.size,
-					startDate: this.startDate,
-					endDate: this.endDate,
-					note: this.note.trim(),
-					category: this.aiClassification ? this.aiClassification.category : records[recordIndex].category,
-					summary: this.aiClassification ? this.aiClassification.summary : records[recordIndex].summary
-				}
-				
-				records[recordIndex] = updatedRecord
-				uni.setStorageSync('experienceRecords', records)
-				
-				uni.showToast({
-					title: '经历已更新',
-					icon: 'success'
-				})
-				
-				setTimeout(() => {
-					uni.navigateBack()
-				}, 1500)
-			},
 			
 			// 获取文件类型
 			getFileType(filename) {

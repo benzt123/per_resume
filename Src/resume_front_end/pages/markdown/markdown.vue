@@ -19,116 +19,153 @@
 		</scroll-view>
 	  </view>
 	</template>
-    <script>
-    import { renderMarkdown } from '@/utils/markdown.js'
-    import html2canvas from 'html2canvas'
-    import jsPDF from 'jspdf'
-		export default {
-			data() {
-				// 尝试从临时存储读取要编辑的简历（由 Mypresume.vue 放入），存为对象以便保存回传
-				let storedObj = null
-				try {
-					if (typeof uni !== 'undefined' && uni.getStorageSync) {
-						storedObj = uni.getStorageSync('editingResume') || null
-					} else if (typeof localStorage !== 'undefined') {
-						const s = localStorage.getItem('editingResume')
-						storedObj = s ? JSON.parse(s) : null
-					}
-				} catch (e) {
-					console.warn('读取 editingResume 失败', e)
-					storedObj = null
-				}
+<script>
+import { renderMarkdown } from '@/utils/markdown.js'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 
-				return { markdownText: (storedObj && storedObj.markdown), htmlContent: '', editingMeta: storedObj }
-			},
-			mounted() {
-				this.renderPreview()
-				// 读取后清理临时存储，避免下次打开仍然使用旧内容
-				try {
-					if (typeof uni !== 'undefined' && uni.removeStorageSync) {
-						uni.removeStorageSync('editingResume')
-					} else if (typeof localStorage !== 'undefined') {
-						localStorage.removeItem('editingResume')
-					}
-				} catch (e) {
-					console.warn('清理 editingResume 失败', e)
-				}
-			},
-      
-      methods: {
-        renderPreview() { this.htmlContent = renderMarkdown(this.markdownText) },
-					async saveResume() {
-						// 如果没有来源信息，则提示用户
-						const meta = this.editingMeta
-						if (!meta || (!meta.id && typeof meta.index === 'undefined')) {
-							try { if (typeof uni !== 'undefined') uni.showToast({ title: '没有可保存的来源', icon: 'none' }) } catch (e) {}
-							return
-						}
-
-						const key = 'myResumes'
-						try {
-							if (typeof uni !== 'undefined' && uni.getStorageSync) {
-								let resumes = uni.getStorageSync(key) || []
-								const idx = resumes.findIndex(r => String(r.id) === String(meta.id))
-								if (idx !== -1) {
-									resumes[idx].markdown = this.markdownText
-									uni.setStorageSync(key, resumes)
-								} else if (typeof meta.index !== 'undefined') {
-									// fallback: use index if id not matched
-									resumes[meta.index] = resumes[meta.index] || {}
-									resumes[meta.index].markdown = this.markdownText
-									uni.setStorageSync(key, resumes)
-								} else {
-									// append
-									resumes.push({ id: meta.id || Date.now().toString(), markdown: this.markdownText, title: meta.title || '' })
-									uni.setStorageSync(key, resumes)
-								}
-								uni.showToast({ title: '保存成功', icon: 'success' })
-								if (uni.navigateBack) uni.navigateBack()
-							} else if (typeof localStorage !== 'undefined') {
-								const s = localStorage.getItem(key)
-								let resumes = s ? JSON.parse(s) : []
-								const idx = resumes.findIndex(r => String(r.id) === String(meta.id))
-								if (idx !== -1) {
-									resumes[idx].markdown = this.markdownText
-									localStorage.setItem(key, JSON.stringify(resumes))
-								} else if (typeof meta.index !== 'undefined') {
-									resumes[meta.index] = resumes[meta.index] || {}
-									resumes[meta.index].markdown = this.markdownText
-									localStorage.setItem(key, JSON.stringify(resumes))
-								} else {
-									resumes.push({ id: meta.id || Date.now().toString(), markdown: this.markdownText, title: meta.title || '' })
-									localStorage.setItem(key, JSON.stringify(resumes))
-								}
-								try { if (typeof uni !== 'undefined') uni.showToast({ title: '保存成功', icon: 'success' }) } catch (e) { alert('保存成功') }
-								// browser fallback: navigate back one page
-								if (typeof window !== 'undefined') window.history.back()
-							}
-						} catch (err) {
-							console.error('保存失败', err)
-							try { if (typeof uni !== 'undefined') uni.showToast({ title: '保存失败', icon: 'none' }) } catch (e) {}
-						}
-					},
-        async exportPDF() {
-          try {
-            const previewEl = document.querySelector('.preview-inner')
-            if (!previewEl) { uni.showToast({ title: '预览内容未找到', icon: 'none' }); return }
-            const canvas = await html2canvas(previewEl, { scale: 2, useCORS: true })
-            const imgData = canvas.toDataURL('image/png')
-            const pdf = new jsPDF('p', 'mm', 'a4')
-            const pdfWidth = pdf.internal.pageSize.getWidth()
-            const imgProps = pdf.getImageProperties(imgData)
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-            pdf.save('resume.pdf')
-          } catch (err) { console.error(err); uni.showToast({ title: '导出失败: ' + (err.message || err), icon: 'none' }) }
-        },
-        loadSample() { this.markdownText = sampleText(); this.renderPreview() },
-        clear() { this.markdownText = ''; this.renderPreview() }
-      }
+export default {
+  data() {
+    return {
+      markdownText: '',
+      htmlContent: '',
+      resumeId: null // 存储当前编辑的简历 ID
     }
-    function sampleText() {
-      return `# 个人简历
+  },
+
+  // ✅ 关键：使用 onLoad 获取 URL 参数
+  onLoad(options) {
+    const id = options.id
+    if (!id) {
+      uni.showToast({ title: '无效的简历 ID', icon: 'none' })
+      return
+    }
+
+    this.resumeId = decodeURIComponent(id)
+
+    // 从存储中加载对应简历
+    this.loadResumeById(this.resumeId)
+  },
+
+  mounted() {
+    // 注意：不要在这里加载数据！onLoad 已处理
+    this.renderPreview()
+  },
+
+  methods: {
+    loadResumeById(id) {
+      try {
+        let resumes = []
+        if (typeof uni !== 'undefined' && uni.getStorageSync) {
+          resumes = uni.getStorageSync('myResumes') || []
+        } else if (typeof localStorage !== 'undefined') {
+          const s = localStorage.getItem('myResumes')
+          resumes = s ? JSON.parse(s) : []
+        }
+
+        const item = resumes.find(r => String(r.id) === String(id))
+        if (item) {
+          this.markdownText = item.markdown || ''
+          // 可选：也保存 title 用于保存时 fallback
+          this.currentTitle = item.title || ''
+        } else {
+          uni.showToast({ title: '未找到该简历', icon: 'none' })
+          this.markdownText = ''
+        }
+      } catch (err) {
+        console.error('加载简历失败', err)
+        uni.showToast({ title: '加载失败', icon: 'none' })
+      }
+    },
+
+    renderPreview() {
+      this.htmlContent = renderMarkdown(this.markdownText)
+    },
+
+    async saveResume() {
+      if (!this.resumeId) {
+        uni.showToast({ title: '无效的简历 ID', icon: 'none' })
+        return
+      }
+
+      const key = 'myResumes'
+      try {
+        let resumes = []
+        if (typeof uni !== 'undefined' && uni.getStorageSync) {
+          resumes = uni.getStorageSync(key) || []
+        } else if (typeof localStorage !== 'undefined') {
+          const s = localStorage.getItem(key)
+          resumes = s ? JSON.parse(s) : []
+        }
+
+        const idx = resumes.findIndex(r => String(r.id) === String(this.resumeId))
+        if (idx !== -1) {
+          // 更新现有简历
+          resumes[idx].markdown = this.markdownText
+          // 可选：更新 title（如果你在编辑页支持改标题）
+          // resumes[idx].title = this.currentTitle || resumes[idx].title
+        } else {
+          // 理论上不应发生，但兜底：新增
+          resumes.push({
+            id: this.resumeId,
+            title: this.currentTitle || '未命名简历',
+            markdown: this.markdownText,
+            date: new Date().toLocaleDateString('zh-CN').replace(/\//g, '/'),
+            img: '/static/tab-chat.png',
+            imgLoaded: false
+          })
+        }
+
+        // 保存回存储
+        if (typeof uni !== 'undefined' && uni.setStorageSync) {
+          uni.setStorageSync(key, resumes)
+        } else if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(key, JSON.stringify(resumes))
+        }
+
+        uni.showToast({ title: '保存成功', icon: 'success' })
+        uni.navigateBack()
+      } catch (err) {
+        console.error('保存失败', err)
+        uni.showToast({ title: '保存失败', icon: 'none' })
+      }
+    },
+
+    async exportPDF() {
+      try {
+        const previewEl = document.querySelector('.preview-inner')
+        if (!previewEl) { 
+          uni.showToast({ title: '预览内容未找到', icon: 'none' })
+          return 
+        }
+        const canvas = await html2canvas(previewEl, { scale: 2, useCORS: true })
+        const imgData = canvas.toDataURL('image/png')
+        const pdf = new jsPDF('p', 'mm', 'a4')
+        const pdfWidth = pdf.internal.pageSize.getWidth()
+        const imgProps = pdf.getImageProperties(imgData)
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+        pdf.save('resume.pdf')
+      } catch (err) { 
+        console.error(err)
+        uni.showToast({ title: '导出失败: ' + (err.message || err), icon: 'none' }) 
+      }
+    },
+
+    loadSample() { 
+      this.markdownText = sampleText()
+      this.renderPreview() 
+    },
+    
+    clear() { 
+      this.markdownText = ''
+      this.renderPreview() 
+    }
+  }
+}
+
+function sampleText() {
+  return `# 个人简历
 **姓名**：张三
 **求职意向**：前端工程师
 
@@ -146,8 +183,8 @@
 - JavaScript / Vue / uni-app
 - Markdown / KaTeX / html2canvas
 `
-    }
-    </script>
+}
+</script>
 	<style>
 	.page {
 	  display: flex;

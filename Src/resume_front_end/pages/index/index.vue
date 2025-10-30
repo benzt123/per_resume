@@ -84,7 +84,15 @@
 							<text class="record-duration">{{record.startDate}} {{record.endDate ? '至 ' + record.endDate : '至今'}}</text>
 						</view>
 					</view>
-					<view class="record-arrow" @click="viewRecordDetail(record)">›</view>
+					<view class="record-actions">
+						<view class="edit-btn" @click.stop="showEditModal(record)">
+							<text class="edit-icon">📝</text>
+						</view>
+						<view class="record-arrow" @click="viewRecordDetail(record)">›</view>
+						<view class="delete-btn" @click.stop="showDeleteConfirm(record)">
+							<text class="delete-icon">🗑️</text>
+						</view>
+					</view>
 				</view>
 			</view>
 		</view>
@@ -126,6 +134,56 @@
 				</view>
 			</view>
 		</view>
+
+		<!-- 删除确认弹窗 -->
+		<view v-if="showDeleteModal" class="delete-modal">
+			<view class="modal-mask" @click="hideDeleteModal"></view>
+			<view class="modal-content">
+				<view class="modal-header">
+					<text class="modal-title">删除确认</text>
+					<view class="modal-close" @click="hideDeleteModal">×</view>
+				</view>
+				<view class="modal-body">
+					<text class="delete-hint">确定要删除这条经历记录吗？</text>
+					<text class="delete-content" v-if="deletingRecord">{{deletingRecord.summary}}</text>
+					<text class="delete-warning">此操作不可撤销</text>
+				</view>
+				<view class="modal-footer">
+					<button class="modal-btn cancel" @click="hideDeleteModal">取消</button>
+					<button class="modal-btn delete" @click="confirmDelete">确认删除</button>
+				</view>
+			</view>
+		</view>
+
+		<!-- 编辑经历弹窗 -->
+		<view v-if="showEditRecordModal" class="edit-modal">
+			<view class="modal-mask" @click="hideEditModal"></view>
+			<view class="modal-content">
+				<view class="modal-header">
+					<text class="modal-title">编辑经历</text>
+					<view class="modal-close" @click="hideEditModal">×</view>
+				</view>
+				<view class="modal-body">
+					
+					<view class="form-group">
+						<text class="form-label">经历描述</text>
+						<textarea 
+							class="form-textarea" 
+							:value="editForm.summary" 
+							@input="onSummaryChange"
+							placeholder="请详细描述这段经历..."
+							maxlength="500"
+							auto-height
+						></textarea>
+						<text class="word-count">{{editForm.summary.length}}/500</text>
+					</view>
+				</view>
+				<view class="modal-footer">
+					<button class="modal-btn cancel" @click="hideEditModal">取消</button>
+					<button class="modal-btn confirm" @click="confirmEdit" :disabled="!isFormValid">保存修改</button>
+				</view>
+			</view>
+		</view>
 	</view>
 </template>
 
@@ -147,6 +205,15 @@
 				showCategoryModal: false,
 				editingRecord: null,
 				selectedCategory: '',
+				// 删除相关
+				showDeleteModal: false,
+				deletingRecord: null,
+				// 编辑相关 - 修复命名冲突
+				showEditRecordModal: false,
+				editingRecordData: null,
+				editForm: {
+					summary: ''
+				},
 				// 可用分类
 				availableCategories: [
 					{ name: '学生工作', icon: '👥' },
@@ -159,25 +226,35 @@
 		},
 
 		computed: {
-			// 分类统计
-			categoryStats() {
-				const stats = {}
-				this.allRecords.forEach(record => {
-					const category = record.category || '未分类'
-					if (!stats[category]) {
-						stats[category] = 0
-					}
-					stats[category]++
-				})
-
-				// 确保所有分类都显示，即使数量为0
-				const allCategories = ['学生工作', '科研项目', '实习经历', '荣誉奖励']
-				return allCategories.map(category => ({
-					name: category,
-					count: stats[category] || 0,
-					icon: this.getCategoryIcon(category)
-				}))
-			}
+		  // 分类统计
+		  categoryStats() {
+		    try {
+		      const stats = {}
+		      this.allRecords.forEach(record => {
+		        const category = record.category || '未分类'
+		        if (!stats[category]) {
+		          stats[category] = 0
+		        }
+		        stats[category]++
+		      })
+		
+		      // 确保所有分类都显示，即使数量为0
+		      const allCategories = ['学生工作', '科研项目', '实习经历', '荣誉奖励']
+		      return allCategories.map(categoryName => ({
+		        name: categoryName,
+		        count: stats[categoryName] || 0,
+		        icon: this.getCategoryIcon(categoryName)
+		      }))
+		    } catch (err) {
+		      console.error('categoryStats 计算错误:', err)
+		      return []
+		    }
+		  },
+		  
+		  // 表单验证
+		  isFormValid() {
+		    return this.editForm.summary.trim().length > 0
+		  }
 		},
 
 		onLoad() {
@@ -241,21 +318,71 @@
 				}
 			},
 
-			loadData() {
-				// 从本地存储加载数据
-				const records = uni.getStorageSync('experienceRecords') || []
-				this.allRecords = records.sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime))
-				
-				this.filterRecords()
-				this.calculateStats()
-			},
+			async loadData() {
+						// 先设置空，立即更新 UI
+						this.allRecords = []
+						this.filteredRecords = []
+						try {
+							const res = await new Promise((resolve, reject) => {
+							      uni.request({
+							        url: 'http://localhost:3000/api/experience/list',  // 你的 API 地址
+							        method: 'GET',
+							        success: (response) => {
+							          resolve(response);
+							        },
+							        fail: (error) => {
+							          reject(error);
+							        }
+							      });
+							    });
+							// 假设后端返回的是数组 rows
+							const rows = Array.isArray(res.data) ? res.data : []
+							console.log('后端返回数据:', res.data)
+							// 将后端字段映射为页面使用的字段（不改变核心字段名）
+							const mapped = rows.map(r => ({
+								id: r.id,
+								category: r.category || '',
+								summary: r.summary || '',
+								confidence: (typeof r.confidence === 'number') ? r.confidence : (r.confidence ? Number(r.confidence) : null),
+								// 映射 created_time -> createdTime， updated_time -> updatedTime
+								createdTime: r.created_time || r.createdTime || new Date().toISOString(),
+								updatedTime: r.updated_time || r.updatedTime || new Date().toISOString(),
+								// 保留页面可能使用的字段（防止其他模块报错）
+								startDate: r.start_date || r.startDate || '',
+								endDate: r.end_date || r.endDate || '',
+								fileName: r.file_name || r.fileName || '',
+								fileSize: r.file_size || r.fileSize || ''
+							}))
+			
+							// 按时间降序
+							this.allRecords = mapped.sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime))
+			
+							// 缓存到本地以防后端不可用时回退
+							try {
+								uni.setStorageSync('experienceRecords', this.allRecords)
+							} catch (e) {
+								// localStorage 写入失败无伤大雅
+								console.warn('本地缓存写入失败', e)
+							}
+			
+						} catch (err) {
+							console.error('从后端加载经历失败，回退到本地存储：', err)
+							// 回退到本地存储
+							const records = uni.getStorageSync('experienceRecords') || []
+							this.allRecords = records.sort((a, b) => new Date(b.createdTime) - new Date(a.createdTime))
+						}
+			
+						// 计算并过滤显示
+						this.filterRecords()
+						this.calculateStats()
+					},
 
 			calculateStats() {
 				this.totalRecords = this.allRecords.length
 				this.totalFiles = this.allRecords.reduce((sum, record) => sum + 1, 0)
 				
 				// 计算活跃分类数量
-				const uniqueCategories = new Set(this.allRecords.map(record => record.category))
+				const uniqueCategories = new Set(this.allRecords.map(record => record.category || '未分类'))
 				this.activeCategories = uniqueCategories.size
 			},
 
@@ -341,28 +468,184 @@
 				this.selectedCategory = category.name
 			},
 
-			confirmCategoryChange() {
-				if (!this.editingRecord || !this.selectedCategory) return
-				
-				// 更新记录的分类
-				const records = uni.getStorageSync('experienceRecords') || []
-				const recordIndex = records.findIndex(item => item.id === this.editingRecord.id)
-				
-				if (recordIndex !== -1) {
-					records[recordIndex].category = this.selectedCategory
-					uni.setStorageSync('experienceRecords', records)
-					
+			async confirmCategoryChange() {
+						if (!this.editingRecord || !this.selectedCategory) return
+			
+						const id = this.editingRecord.id
+						const newCategory = this.selectedCategory
+						const payload = {
+							id,
+							category: newCategory,
+							// 保持 summary 与 confidence 不变（以免数据库被覆盖）
+							summary: this.editingRecord.summary || '',
+							confidence: this.editingRecord.confidence || null
+						}
+			
+						try {
+							await new Promise((resolve, reject) => {
+							      uni.request({
+							        url: 'http://localhost:3000/api/experience/update',
+							        method: 'PUT',
+							        data: payload,
+							        success: (response) => resolve(response),
+							        fail: (error) => reject(error)
+							      });
+							    });
+							// 更新本地数组
+							const idx = this.allRecords.findIndex(r => r.id === id)
+							if (idx !== -1) {
+								this.allRecords[idx].category = newCategory
+								this.allRecords[idx].updatedTime = new Date().toISOString()
+							}
+							// 更新缓存与 UI
+							uni.setStorageSync('experienceRecords', this.allRecords)
+							this.filterRecords()
+							this.calculateStats()
+			
+							uni.showToast({
+								title: '分类修改成功',
+								icon: 'success'
+							})
+						} catch (err) {
+							console.error('更新分类到后端失败：', err)
+							uni.showToast({
+								title: '分类修改失败',
+								icon: 'none'
+							})
+						} finally {
+							this.hideCategoryModal()
+						}
+					},
+
+
+			// 删除功能
+			showDeleteConfirm(record) {
+				this.deletingRecord = record
+				this.showDeleteModal = true
+			},
+
+			hideDeleteModal() {
+				this.showDeleteModal = false
+				this.deletingRecord = null
+			},
+
+			async confirmDelete() {
+				if (!this.deletingRecord) return
+			
+				const id = this.deletingRecord.id
+			
+				try {
+					// 调用后端 DELETE 接口
+					await new Promise((resolve, reject) => {
+					      uni.request({
+					        url: `http://localhost:3000/api/experience/${id}`,
+					        method: 'DELETE',
+					        success: (response) => resolve(response),
+					        fail: (error) => reject(error)
+					      });
+					    });
+			
+					// 本地同步更新（删除对应项）
+					this.allRecords = this.allRecords.filter(r => r.id !== id)
+					uni.setStorageSync('experienceRecords', this.allRecords)
+					this.filterRecords()
+					this.calculateStats()
+			
 					uni.showToast({
-						title: '分类修改成功',
+						title: '删除成功',
 						icon: 'success'
 					})
-					
-					// 重新加载数据
-					this.loadData()
+				} catch (err) {
+					console.error('删除经历失败：', err)
+					uni.showToast({
+						title: '删除失败',
+						icon: 'none'
+					})
+				} finally {
+					this.hideDeleteModal()
 				}
-				
-				this.hideCategoryModal()
 			},
+
+
+			// 编辑功能
+			showEditModal(record) {
+				this.editingRecordData = record
+				// 初始化表单数据
+				const categoryIndex = this.availableCategories.findIndex(cat => cat.name === record.category)
+				this.editForm = {
+					summary: record.summary || ''
+				}
+				this.showEditRecordModal = true
+			},
+
+			hideEditModal() {
+				this.showEditRecordModal = false
+				this.editingRecordData = null
+				this.editForm = {
+					summary: ''
+				}
+			},
+
+
+			onSummaryChange(e) {
+				this.editForm.summary = e.detail.value
+			},
+
+			async confirmEdit() {
+						if (!this.isFormValid || !this.editingRecordData) return
+						
+						const id = this.editingRecordData.id
+						const updated = {
+							id,
+							category: this.editingRecordData.category,
+							summary: this.editForm.summary.trim(),
+							confidence: this.editingRecordData.confidence || null
+						}
+			
+						try {
+							await new Promise((resolve, reject) => {
+							      uni.request({
+							        url: 'http://localhost:3000/api/experience/update',
+							        method: 'PUT',
+							        data: updated,
+							        success: (response) => resolve(response),
+							        fail: (error) => reject(error)
+							      });
+							    });
+
+			
+							// 本地同步更新
+							const records = this.allRecords
+							const recordIndex = records.findIndex(item => item.id === id)
+							
+							if (recordIndex !== -1) {
+								records[recordIndex] = {
+									...records[recordIndex],
+									summary: updated.summary,
+									updatedTime: new Date().toISOString()
+								}
+							}
+			
+							// 写回本地缓存
+							uni.setStorageSync('experienceRecords', records)
+			
+							uni.showToast({
+								title: '修改成功',
+								icon: 'success'
+							})
+			
+							// 重新渲染/计算
+							this.filterRecords()
+							this.calculateStats()
+							this.hideEditModal()
+						} catch (err) {
+							console.error('提交修改失败：', err)
+							uni.showToast({
+								title: '更新失败，请稍后重试',
+								icon: 'none'
+							})
+						}
+					},
 
 			// 事件处理
 			onTimeFilterChange(e) {
@@ -437,7 +720,7 @@
 		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 		min-height: 100vh;
 		padding: 0;
-		padding-bottom: 120rpx; /* 为底部导航栏留出空间 */
+		padding-bottom: 120rpx;
 	}
 
 	/* 时间显示区域 */
@@ -708,10 +991,48 @@
 		color: #666;
 	}
 
+	.record-actions {
+		display: flex;
+		align-items: center;
+		gap: 10rpx;
+	}
+
 	.record-arrow {
 		font-size: 36rpx;
 		color: #ccc;
-		margin-left: 20rpx;
+	}
+
+	/* 编辑按钮样式 */
+	.edit-btn {
+		padding: 8rpx;
+		border-radius: 6rpx;
+		background: #f0f9ff;
+		cursor: pointer;
+		transition: background 0.3s;
+	}
+
+	.edit-btn:active {
+		background: #e6f7ff;
+	}
+
+	.edit-icon {
+		font-size: 24rpx;
+	}
+
+	.delete-btn {
+		padding: 8rpx;
+		border-radius: 6rpx;
+		background: #fff5f5;
+		cursor: pointer;
+		transition: background 0.3s;
+	}
+
+	.delete-btn:active {
+		background: #fed7d7;
+	}
+
+	.delete-icon {
+		font-size: 24rpx;
 	}
 
 	/* 生成简历按钮 */
@@ -743,64 +1064,10 @@
 		margin-right: 15rpx;
 	}
 
-	/* 底部导航栏 */
-	.bottom-nav {
-		position: fixed;
-		bottom: 0;
-		left: 0;
-		right: 0;
-		height: 100rpx;
-		display: flex;
-		justify-content: space-around;
-		align-items: center;
-		background-color: #fff;
-		border-top: 1rpx solid #eee;
-		padding: 0 20rpx;
-		box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.1);
-	}
-
-	.nav-item {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		flex: 1;
-		padding: 10rpx;
-		color: #777;
-		font-size: 20rpx;
-	}
-
-	.nav-icon {
-		font-size: 36rpx;
-		margin-bottom: 4rpx;
-	}
-
-	.nav-text {
-		font-size: 20rpx;
-	}
-
-	.nav-item.active {
-		color: #FF9845;
-	}
-
-	.add-btn {
-		width: 80rpx;
-		height: 80rpx;
-		background: linear-gradient(135deg, #ff9845, #f9be25);
-		color: #fff;
-		font-size: 40rpx;
-		font-weight: bold;
-		border-radius: 50%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		position: relative;
-		top: -20rpx;
-		box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.2);
-	}
-
-	/* 分类修改弹窗 */
-	.category-modal {
+	/* 弹窗通用样式 */
+	.category-modal,
+	.delete-modal,
+	.edit-modal {
 		position: fixed;
 		top: 0;
 		left: 0;
@@ -927,5 +1194,102 @@
 	.modal-btn.confirm[disabled] {
 		background: #ccc;
 		color: #999;
+	}
+
+	.modal-btn.delete {
+		background: #e53e3e;
+		color: white;
+		border: none;
+	}
+
+	/* 删除确认弹窗特定样式 */
+	.delete-modal .modal-body {
+		text-align: center;
+	}
+
+	.delete-hint {
+		display: block;
+		font-size: 28rpx;
+		color: #333;
+		margin-bottom: 20rpx;
+	}
+
+	.delete-content {
+		display: block;
+		font-size: 24rpx;
+		color: #666;
+		background: #f8f9fa;
+		padding: 20rpx;
+		border-radius: 10rpx;
+		margin-bottom: 20rpx;
+		line-height: 1.4;
+	}
+
+	.delete-warning {
+		display: block;
+		font-size: 22rpx;
+		color: #e53e3e;
+	}
+
+	/* 编辑弹窗样式 */
+	.edit-modal .modal-body {
+		max-height: 70vh;
+		overflow-y: auto;
+	}
+
+	.form-group {
+		margin-bottom: 30rpx;
+	}
+
+	.form-label {
+		display: block;
+		font-size: 28rpx;
+		color: #333;
+		margin-bottom: 15rpx;
+		font-weight: 500;
+	}
+
+	.form-picker {
+		background: #f8f9fa;
+		padding: 20rpx;
+		border-radius: 10rpx;
+		font-size: 28rpx;
+		color: #333;
+		border: 1rpx solid #e9ecef;
+	}
+
+	.checkbox-group {
+		margin-top: 15rpx;
+	}
+
+	.checkbox-label {
+		display: flex;
+		align-items: center;
+		font-size: 26rpx;
+		color: #666;
+	}
+
+	.checkbox-text {
+		margin-left: 10rpx;
+	}
+
+	.form-textarea {
+		width: 100%;
+		min-height: 200rpx;
+		background: #f8f9fa;
+		border: 1rpx solid #e9ecef;
+		border-radius: 10rpx;
+		padding: 20rpx;
+		font-size: 28rpx;
+		line-height: 1.5;
+		box-sizing: border-box;
+	}
+
+	.word-count {
+		display: block;
+		text-align: right;
+		font-size: 24rpx;
+		color: #999;
+		margin-top: 10rpx;
 	}
 </style>

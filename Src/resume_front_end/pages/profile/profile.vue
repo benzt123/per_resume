@@ -3,7 +3,7 @@
 		<!-- 用户信息区域 -->
 		<view class="user-info">
 			<view class="avatar-section">
-				<image class="avatar" src="/static/logo.png" mode="aspectFit"></image>
+				<image class="avatar" :src="avatarUrl" mode="aspectFit"></image>
 				<text class="username">用户</text>
 				<text class="user-desc">记录你的成长</text>
 			</view>
@@ -65,11 +65,48 @@
 	export default {
 		data() {
 			return {
-				
+				avatarUrl: '/static/logo.png',  // 默认头像
+				API_BASE: 'http://localhost:3000'  // API 基础地址
 			}
+		},
+		onShow() {
+			// 页面显示时加载头像
+			this.loadAvatar();
 		},
 		
 		methods: {
+			//新增：加载用户头像
+			async loadAvatar() {
+				try {
+					const response = await uni.request({
+						url: `${this.API_BASE}/api/profile`,
+						method: 'GET'
+					});
+					
+					if (response.data && response.data.avatar) {
+						const avatar = response.data.avatar;
+						
+						// 判断是否为完整 URL
+						if (avatar.startsWith('http')) {
+							this.avatarUrl = avatar;
+						} else {
+							// 拼接完整 URL：http://localhost:3000/uploads/avatars/avatar-xxx.jpg
+							this.avatarUrl = `${this.API_BASE}${avatar}`;
+						}
+						
+						console.log('加载头像成功:', this.avatarUrl);
+					} else {
+						console.log('未找到用户头像，使用默认头像');
+					}
+				} catch (error) {
+					console.error('加载头像失败:', error);
+					uni.showToast({
+						title: '头像加载失败',
+						icon: 'none'
+					});
+				}
+			},
+			
 			// 跳转到AI配置页面
 			goToAIConfig() {
 				uni.navigateTo({

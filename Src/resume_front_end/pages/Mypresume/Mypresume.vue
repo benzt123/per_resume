@@ -53,6 +53,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 
 // 使用响应式数据
 const resumes = ref([])
@@ -176,31 +177,28 @@ const downloadImage = (url, title) => {
 // 预览并编辑简历：把对应的 markdown 内容写入临时存储，然后跳转到 markdown 编辑页面
 const previewResume = (index) => {
   const item = resumes.value[index]
-  const storageKey = 'editingResume'
-  const content = item.markdown || ''
 
-  // uni-app 环境使用 uni storage，否则 fallback 到 localStorage（浏览器）
-  if (typeof uni !== 'undefined' && uni.setStorageSync) {
-    try {
-      uni.setStorageSync(storageKey, { id: item.id, index, markdown: content, title: item.title })
-    } catch (e) { console.warn('setStorageSync failed', e) }
-  } else if (typeof localStorage !== 'undefined') {
-    try { localStorage.setItem(storageKey, JSON.stringify({ id: item.id, index, markdown: content, title: item.title })) } catch (e) { console.warn('localStorage setItem failed', e) }
-  }
-  else {
-    console.warn('No storage mechanism available for saving editingResume')
-  }
+  // ✅ 直接通过 URL 传递 id，不再使用临时存储
+  const url = `/pages/markdown/markdown?id=${encodeURIComponent(item.id)}`
 
-  // 跳转到 markdown 编辑页（uni-app）
   if (typeof uni !== 'undefined' && uni.navigateTo) {
-    uni.navigateTo({ url: '/pages/markdown/markdown' })
+    // UniApp 环境（小程序 / App / H5）
+    uni.navigateTo({ url })
   } else if (typeof window !== 'undefined') {
-    // SPA fallback — 尝试跳转到可能的 hash 路径（根据项目路由可调整）
-    window.location.href = '/#/pages/markdown/markdown'
+    // 纯浏览器 SPA fallback（如直接用 Vue 开发的 H5）
+    // 注意：如果你项目是标准 UniApp H5，通常不会走这里
+    window.location.href = `/#${url}`
+  } else {
+    console.warn('无法跳转到编辑页面')
   }
 }
 // 页面加载时从本地存储读取数据
 onMounted(() => {
+  loadResumes()
+})
+
+onShow(() => {
+  console.log('监听页面显示，重新加载简历')
   loadResumes()
 })
 

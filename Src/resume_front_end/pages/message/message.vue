@@ -3,7 +3,7 @@
     <!-- 头像区域 -->
     <div class="avatar-section">
       <div class="avatar-container" :class="{ 'has-avatar': formData.avatar }" @click="handleAvatarClick">
-        <img class="user-avatar" :src="getAvatarUrl()" alt="头像" v-if="formData.avatar" />
+        <img class="user-avatar" :src="getAvatarUrl()" alt="头像" />
         <div class="avatar-mask" v-if="isEditMode">
           <text class="camera-icon">📷</text>
         </div>
@@ -55,30 +55,32 @@
           <text class="arrow" v-if="isEditMode">›</text>
         </div>
       </div>
-	  <!-- 手机号 -->
-	  <div class="form-item">
-	    <div class="item-label">
-	      <text class="required">*</text>
-	      <text>手机号</text>
-	    </div>
-	    <input 
-	      class="item-input" 
-	      type="number"
-	      v-model="formData.phone" 
-	      :disabled="!isEditMode"
-	      placeholder="请输入手机号"
-	      placeholder-class="placeholder"
-	      maxlength="11"
-	    />
-	  </div>
+
+      <!-- 手机号 -->
+      <div class="form-item">
+        <div class="item-label">
+          <text class="required">*</text>
+          <text>手机号</text>
+        </div>
+        <input 
+          class="item-input" 
+          type="number"
+          v-model="formData.phone" 
+          :disabled="!isEditMode"
+          placeholder="请输入手机号"
+          placeholder-class="placeholder"
+          maxlength="11"
+        />
+      </div>
+
       <!-- 政治面貌 -->
       <div class="form-item" @click="handlePoliticalClick">
         <div class="item-label">
           <text>政治面貌</text>
         </div>
         <div class="item-value" :class="{ disabled: !isEditMode }">
-          <text :class="{ placeholder: !formData.politicalStatus }">
-            {{ formData.politicalStatus || '请选择政治面貌' }}
+          <text :class="{ placeholder: !formData.political_status }">
+            {{ formData.political_status || '请选择政治面貌' }}
           </text>
           <text class="arrow" v-if="isEditMode">›</text>
         </div>
@@ -87,13 +89,13 @@
       <!-- 出生年月 -->
       <div class="form-item">
         <div class="item-label">
-          <text>出生年月</text>
+          <text>出生日期</text>
         </div>
         <input 
           class="item-input" 
           v-model="formData.birthday" 
           :disabled="!isEditMode"
-          placeholder="如:2005.10"
+          placeholder="如:2005-10-15"
           placeholder-class="placeholder"
         />
       </div>
@@ -105,7 +107,7 @@
         </div>
         <input 
           class="item-input" 
-          v-model="formData.graduationYear" 
+          v-model="formData.graduation_year" 
           :disabled="!isEditMode"
           placeholder="请输入毕业年份"
           placeholder-class="placeholder"
@@ -135,7 +137,7 @@
           class="item-input" 
           v-model="formData.gpa" 
           :disabled="!isEditMode"
-          placeholder="如:GPA 3.8/4.0"
+          placeholder="如:3.8"
           placeholder-class="placeholder"
         />
       </div>
@@ -182,7 +184,7 @@
           maxlength="200"
         />
         <div class="char-count" v-if="isEditMode">
-          {{ formData.intro.length }}/200
+          {{ formData.intro ? formData.intro.length : 0 }}/200
         </div>
       </div>
     </div>
@@ -191,40 +193,17 @@
     <div class="float-edit-btn" @click="toggleEditMode">
       <text>{{ isEditMode ? '完成' : '编辑' }}</text>
     </div>
-
-    <!-- 日期选择器 -->
-    <picker 
-      mode="date" 
-      :value="formData.birthday"
-      :end="maxDate"
-      @change="onBirthdayChange"
-      v-if="showDatePicker"
-    >
-      <view></view>
-    </picker>
-
-    <!-- 毕业年份选择器 -->
-    <picker 
-      mode="date" 
-      :value="formData.graduationYear"
-      :end="currentYear"
-      fields="year"
-      @change="onGraduationYearChange"
-      v-if="showGraduationYearPicker"
-    >
-      <view></view>
-    </picker>
   </div>
 </template>
 
 <script>
+const API_BASE = 'http://localhost:3000';
+
 export default {
   name: "MessagePage",
   data() {
     return {
       isEditMode: false,
-      showDatePicker: false,
-      showGraduationYearPicker: false,
       maxDate: '',
       currentYear: '',
       genderOptions: ['男', '女', '其他'],
@@ -250,9 +229,9 @@ export default {
         name: '',
         gender: '',
         birthday: '',
-        politicalStatus: '',
+        political_status: '',
         education: '',
-        graduationYear: '',
+        graduation_year: '',
         school: '',
         gpa: '',
         phone: '',
@@ -271,13 +250,20 @@ export default {
   },
   
   methods: {
+    // 获取头像URL
     getAvatarUrl() {
       if (!this.formData.avatar) {
         return '/static/default-avatar.png';
       }
-      return this.formData.avatar;
+      // 如果已经是完整URL就直接使用
+      if (this.formData.avatar.startsWith('http')) {
+        return this.formData.avatar;
+      }
+      // 如果是相对路径，拼接基础URL
+      return `${API_BASE}${this.formData.avatar}`;
     },
     
+    // 切换编辑模式
     toggleEditMode() {
       if (this.isEditMode) {
         this.saveInfo();
@@ -286,28 +272,64 @@ export default {
       }
     },
     
+    // 头像上传
     handleAvatarClick() {
-      if (!this.isEditMode) {
-        uni.showToast({
-          title: '请先点击编辑按钮',
-          icon: 'none'
-        });
-        return;
-      }
+      if (!this.isEditMode) return;
       
       uni.chooseImage({
         count: 1,
         sizeType: ['compressed'],
-        sourceType: ['album'],
+        sourceType: ['album', 'camera'],
         success: (chooseRes) => {
           const tempFilePath = chooseRes.tempFilePaths[0];
-          this.formData.avatar = tempFilePath;
-          this.saveAvatarToStorage();
           
-          uni.showToast({
-            title: '头像更新成功',
-            icon: 'success',
-            duration: 1500
+          uni.showLoading({ title: '上传中...' });
+          
+          // 使用 uni.uploadFile 上传文件
+          uni.uploadFile({
+            url: `${API_BASE}/api/upload/avatar`,
+            filePath: tempFilePath,
+            name: 'avatar',
+            // 不要手动设置 header，让 uni.uploadFile 自动处理
+            success: (uploadRes) => {
+              uni.hideLoading();
+              
+              try {
+                const data = JSON.parse(uploadRes.data);
+                
+                if (data.success) {
+                  // 保存相对路径到 formData
+                  this.formData.avatar = data.url;
+                  
+                  uni.showToast({ 
+                    title: '头像上传成功', 
+                    icon: 'success',
+                    duration: 1500
+                  });
+                  
+                  // 延迟保存，确保界面已更新
+                  setTimeout(() => {
+                    this.saveAvatarToDatabase();
+                  }, 500);
+                } else {
+                  throw new Error(data.error || '上传失败');
+                }
+              } catch (err) {
+                console.error('解析响应失败:', err);
+                uni.showToast({
+                  title: '上传失败: ' + err.message,
+                  icon: 'none'
+                });
+              }
+            },
+            fail: (err) => {
+              uni.hideLoading();
+              console.error('上传请求失败:', err);
+              uni.showToast({
+                title: '上传失败，请重试',
+                icon: 'none'
+              });
+            }
           });
         },
         fail: (err) => {
@@ -320,12 +342,27 @@ export default {
       });
     },
     
-    saveAvatarToStorage() {
-      const userInfo = uni.getStorageSync('userInfo') || {};
-      userInfo.avatar = this.formData.avatar;
-      uni.setStorageSync('userInfo', userInfo);
+    // 单独保存头像路径到数据库
+    async saveAvatarToDatabase() {
+      try {
+        const response = await uni.request({
+          url: `${API_BASE}/api/profile/save`,
+          method: 'POST',
+          header: { 'Content-Type': 'application/json' },
+          data: this.formData
+        });
+        
+        if (response.data && response.data.success) {
+          console.log('头像路径已保存到数据库');
+        } else {
+          console.error('保存头像路径失败:', response.data?.error);
+        }
+      } catch (error) {
+        console.error('保存头像路径到数据库失败:', error);
+      }
     },
     
+    // 性别选择
     handleGenderClick() {
       if (!this.isEditMode) return;
       
@@ -337,28 +374,19 @@ export default {
       });
     },
     
-    handleBirthdayClick() {
-      if (!this.isEditMode) return;
-      this.showDatePicker = true;
-      
-      this.$nextTick(() => {
-        setTimeout(() => {
-          this.showDatePicker = false;
-        }, 100);
-      });
-    },
-    
+    // 政治面貌选择
     handlePoliticalClick() {
       if (!this.isEditMode) return;
       
       uni.showActionSheet({
         itemList: this.politicalOptions,
         success: (res) => {
-          this.formData.politicalStatus = this.politicalOptions[res.tapIndex];
+          this.formData.political_status = this.politicalOptions[res.tapIndex];
         }
       });
     },
     
+    // 学历选择
     handleEducationClick() {
       if (!this.isEditMode) return;
       
@@ -370,25 +398,7 @@ export default {
       });
     },
     
-    handleGraduationYearClick() {
-      if (!this.isEditMode) return;
-      this.showGraduationYearPicker = true;
-      
-      this.$nextTick(() => {
-        setTimeout(() => {
-          this.showGraduationYearPicker = false;
-        }, 100);
-      });
-    },
-    
-    onBirthdayChange(e) {
-      this.formData.birthday = e.detail.value;
-    },
-    
-    onGraduationYearChange(e) {
-      this.formData.graduationYear = e.detail.value;
-    },
-    
+    // 表单验证
     validateForm() {
       if (!this.formData.name) {
         uni.showToast({
@@ -441,24 +451,83 @@ export default {
       return true;
     },
     
-    saveInfo() {
+    // 保存用户信息到数据库
+    async saveInfo() {
       if (!this.validateForm()) {
         return;
       }
       
-      uni.setStorageSync('userInfo', this.formData);
-      this.isEditMode = false;
+      uni.showLoading({ title: '保存中...' });
       
-      uni.showToast({
-        title: '保存成功',
-        icon: 'success'
-      });
+      try {
+        const response = await uni.request({
+          url: `${API_BASE}/api/profile/save`,
+          method: 'POST',
+          header: { 'Content-Type': 'application/json' },
+          data: this.formData
+        });
+        
+        uni.hideLoading();
+        
+        if (response.data && response.data.success) {
+          this.isEditMode = false;
+          uni.showToast({
+            title: '保存成功',
+            icon: 'success'
+          });
+        } else {
+          uni.showToast({
+            title: response.data?.error || '保存失败',
+            icon: 'none'
+          });
+        }
+      } catch (error) {
+        uni.hideLoading();
+        console.error('保存失败:', error);
+        uni.showToast({
+          title: '保存失败,请重试',
+          icon: 'none'
+        });
+      }
     },
     
-    loadUserInfo() {
-      const userInfo = uni.getStorageSync('userInfo');
-      if (userInfo) {
-        this.formData = { ...this.formData, ...userInfo };
+    // 从数据库加载用户信息
+    async loadUserInfo() {
+      uni.showLoading({ title: '加载中...' });
+      
+      try {
+        const response = await uni.request({
+          url: `${API_BASE}/api/profile`,
+          method: 'GET'
+        });
+        
+        uni.hideLoading();
+        
+        if (response.data) {
+          // 处理头像URL：如果是完整URL，转换为相对路径保存
+          if (response.data.avatar && response.data.avatar.startsWith('http')) {
+            const url = new URL(response.data.avatar);
+            response.data.avatar = url.pathname;
+          }
+          
+          this.formData = { 
+            ...this.formData, 
+            ...response.data 
+          };
+          
+          // 处理空值显示
+          if (!this.formData.intro) {
+            this.formData.intro = '';
+          }
+        }
+      } catch (error) {
+        uni.hideLoading();
+        console.error('加载用户信息失败:', error);
+        uni.showToast({
+          title: '加载失败',
+          icon: 'none',
+          duration: 2000
+        });
       }
     }
   }
@@ -473,7 +542,6 @@ export default {
   padding-top: 15px;
 }
 
-/* 头像区域 */
 .avatar-section {
   display: flex;
   flex-direction: column;
@@ -513,10 +581,6 @@ export default {
   color: #ccc;
 }
 
-.avatar-container:active .user-avatar {
-  transform: scale(0.95);
-}
-
 .avatar-mask {
   position: absolute;
   bottom: 0;
@@ -541,7 +605,6 @@ export default {
   color: #999;
 }
 
-/* 表单区域 */
 .form-section {
   background: #fff;
   border-radius: 15px;
@@ -648,7 +711,6 @@ export default {
   margin-top: 5px;
 }
 
-/* 悬浮编辑按钮 - 变大版本 */
 .float-edit-btn {
   position: fixed;
   right: 30px;
@@ -675,7 +737,6 @@ export default {
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
 }
 
-/* 响应式适配 */
 @media (max-width: 375px) {
   .item-label {
     min-width: 80px;
