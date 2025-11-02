@@ -9,24 +9,6 @@
 			</view>
 		</view>
 		
-		<!-- AI功能 -->
-		<view class="data-management">
-			<text class="management-title">AI智能功能</text>
-			<view class="management-item ai-config-item" @click="goToAIConfig">
-				<view class="management-left">
-					<text class="management-icon">🤖</text>
-					<text class="management-text">智能体配置</text>
-				</view>
-				<text class="management-arrow">></text>
-			</view>
-			<view class="management-item voice-config-item" @click="goToVoiceConfig">
-				<view class="management-left">
-					<text class="management-icon">🎤</text>
-					<text class="management-text">语音识别配置</text>
-				</view>
-				<text class="management-arrow">></text>
-			</view>
-		</view>
 		
 		<!-- 个人信息管理 -->
 		<view class="data-management">

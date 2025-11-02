@@ -18,7 +18,7 @@
 			>
 				<view class="upload-icon">📁</view>
 				<text class="upload-text">点击或拖拽文件到此处上传</text>
-				<text class="upload-hint">支持txt, xlsx, csv, jpg等格式</text>
+				<text class="upload-hint">支持txt, docx, jpg,png等格式</text>
 			</view>
 			
 			<!-- 已选择文件列表 -->
@@ -31,6 +31,26 @@
 			</view>
 		</view>
 		
+		
+		<!-- 备注输入 -->
+		<view class="note-section">
+			<text class="section-title">补充说明（可选）</text>
+			<textarea class="note-input" 
+					  v-model="note" 
+					  placeholder="可以补充一些经历的背景信息..." 
+					  maxlength="200"/>
+		</view>
+
+		<!-- 开始ai分析 -->
+		<view v-if=" !aiClassification && !isAnalyzing&& selectedFile" class="analyze-section">
+		  <button 
+		    class="analyze-btn" 
+		    @click="triggerAIClassification"
+		    :disabled="isAnalyzing"
+		  >
+		    {{ isAnalyzing ? '分析中...' : '开始 AI 分析' }}
+		  </button>
+		</view>
 		<!-- AI分类结果预览 -->
 		<view v-if="aiClassification" class="ai-preview-section">
 			<text class="section-title">AI分类结果</text>
@@ -63,12 +83,12 @@
 	    return {
 	      //本地显示字段
 	      selectedFile: null,
-	      startDate: '',
-	      endDate: '',
 	      note: '',
 	      dragOver: false,
 	      editingRecordId: null,
 	      aiClassification: null,
+		  hasUploaded: false, // 是否已完成上传
+		  isAnalyzing: false,//分析中不可以乱点哦
 	      experienceCategories: [
 	        { id: 1, name: '学生工作', icon: '👥' },
 	        { id: 2, name: '科研项目', icon: '🔬' },
@@ -81,146 +101,177 @@
 		
 		computed: {
 			canSave() {
-				return this.selectedFile && this.startDate&& this.aiClassification
-			}
+			    return !!this.selectedFile &&!!this.aiClassification;//AI分析完才能保存
+			  }
 		},
 		
 		onLoad(options) {
 				uni.setNavigationBarTitle({
 					title: '添加经历'
 				})
-				// 设置默认开始时间为当前时间
-				const now = new Date()
-				this.startDate = this.formatDateForPicker(now)
+
 		},
 		
 		methods: {
 			// 选择文件
 			chooseFile() {
-				uni.chooseFile({
-					count: 1,
-					type: 'all',
-					success: (res) => {
-						const file = res.tempFiles[0]
-						this.selectedFile = file
-						this.processFileWithAI(file)
-					}
-				})
-			},
-			
-			// 处理文件拖放
-			handleFileDrop(event) {
-				event.preventDefault()
-				this.dragOver = false
-				const files = event.dataTransfer.files
-				if (files && files.length > 0) {
-					this.selectedFile = files[0]
-					this.processFileWithAI(files[0])
-				}
-			},
-			
-			// AI 失败时按备注进行最小化保存
-			async saveRecordOnAIFailure() {
-			  const category = '未分类';
-			  const noteTrimmed = (this.note || '').trim();
-			  const summary = noteTrimmed || 'AI分析失败';
-			  const confidence = null;
-			  try {
-				await uni.request({
-				  url: `${API_BASE}/api/experience/add`,
-				  method: 'POST',
-				  header: { 'Content-Type': 'application/json' },
-				  data: {
-					category,
-					summary,
-					confidence,
-					fileName: this.selectedFile?.name || '',
-					fileSize: this.selectedFile?.size || 0,
-					startDate: this.startDate || '',
-					endDate: this.endDate || '',
-					note: this.note || ''
-				  }
-				});
-				uni.showToast({ title: '已保存备注', icon: 'success' });
-			  } catch (e) {
-				console.error('AI失败后保存备注失败：', e);
-				// 失败时不再抛出，避免中断用户流程
+			  if (this.hasUploaded) {
+			    uni.showToast({ title: '请先清除当前文件', icon: 'none', duration: 2000 });
+			    return;
 			  }
-			},
-			async processFileWithAI(file) {
-			  try {
-			    // 调用AI分析，但不保存
-			    const classification = await this.callAIClassificationAPI(file)
 			
-			    // 只更新页面显示，不保存到数据库
-			    this.aiClassification = {
-			      category: classification.category,
-			      summary: classification.summary,
-			      confidence: classification.confidence || null
+			  uni.chooseFile({
+			    count: 1,
+			    type: 'all',
+			    success: (res) => {
+			      const file = res.tempFiles[0];
+			      this.selectedFile = file;
+			    },
+			    fail: (err) => {
+			      uni.showToast({ title: '选择失败', icon: 'none' });
 			    }
-			
-			    uni.showToast({ title: 'AI分析完成', icon: 'success' })
-			  } catch (error) {
-			    uni.showToast({ title: 'AI分析失败', icon: 'error' })
-			    console.error('AI分析失败:', error)
-			  }
-			},
-
-			
-			// 调用AI分类API（只分析，不保存）
-			async callAIClassificationAPI(file) {
-			  return new Promise((resolve, reject) => {
-			    uni.showLoading({ title: 'AI分析中...' });
-			
-			    uni.uploadFile({
-			      url: `${API_BASE}/api/ai/classify`,
-			      filePath: file.path || file.tempFilePath || file,
-			      name: 'file',
-			      success: (uploadRes) => {
-			        let payload;
-			        try {
-			          payload = JSON.parse(uploadRes.data);
-			        } catch (e) {
-			          uni.hideLoading();
-			          return reject(new Error('后端返回不是 JSON：' + String(uploadRes.data).slice(0, 200)));
-			        }
-			
-			        // HTTP 200 -> 期望 { success: true, data: {...} }
-			        if (uploadRes.statusCode === 200 && payload && payload.success) {
-			          const first = Array.isArray(payload.data?.experiences)
-			            ? payload.data.experiences[0]
-			            : payload.data;
-			          if (!first || !first.category || !first.summary) {
-			            uni.hideLoading();
-			            return reject(new Error('AI 未返回有效的 category/summary'));
-			          }
-			          uni.hideLoading();
-			          
-			          // 只返回分析结果，不保存到数据库
-			          return resolve({
-			            category: first.category,
-			            summary: first.summary,
-			            confidence: (typeof first.confidence === 'number') ? first.confidence : null
-			          });
-			        }
-			
-			        // 非 200 或 success=false -> 显示后端 details
-			        const backendMsg = payload?.details || payload?.error || `HTTP ${uploadRes.statusCode}`;
-			        uni.hideLoading();
-			        return reject(new Error(backendMsg));
-			      },
-			      fail: (err) => {
-			        uni.hideLoading();
-			        reject(new Error('上传失败：' + (err?.errMsg || '未知错误')));
-			      }
-			    });
 			  });
 			},
 			
+			// 处理文件拖放
+			handleFileDrop(e) {
+			  e.preventDefault();
+			  this.dragOver = false;
+			
+			  if (this.hasUploaded) {
+			    uni.showToast({ title: '请先清除当前文件', icon: 'none', duration: 2000 });
+			    return;
+			  }
+			
+			  const files = e.dataTransfer.files;
+			  if (files.length === 0) return;
+			
+			  // 只允许拖入一个文件
+			  if (files.length > 1) {
+			    uni.showToast({ title: '仅支持单个文件', icon: 'none', duration: 2000 });
+			    return;
+			  }
+			
+			  const file = files[0];
+			  this.selectedFile = file;
+			},
+			// 触发 AI 分析，条件是文件必须
+			triggerAIClassification() {
+			  if (!this.selectedFile) {
+			    uni.showToast({
+			      title: '请先上传文件',
+			      icon: 'none',
+			      duration: 2000
+			    });
+			    return;
+			  }
+		
+			  this.processFileWithAI(this.selectedFile);
+			},
+			//调用ai分析
+			async processFileWithAI(file) {
+						  try {
+						    uni.showLoading({ title: 'AI分析中...' });
+						
+						    // 使用 uploadFile 发送文件 + note
+						    const uploadTask = uni.uploadFile({
+						      url: `${API_BASE}/api/ai/classify`,
+						      filePath: file.path || file.tempFilePath,
+						      name: 'file', // 后端接收字段名
+						      formData: {
+						        note: this.note || '' // 将备注作为表单字段一起发送
+						      },
+						      success: (res) => {
+						        let payload;
+						        try {
+						          payload = JSON.parse(res.data);
+						        } catch (e) {
+						          uni.showToast({ title: '解析失败', icon: 'none' });
+						          console.error('非 JSON 响应:', res.data);
+						          return;
+						        }
+						
+						        if (payload.success) {
+						          const first = Array.isArray(payload.data?.experiences)
+						            ? payload.data.experiences[0]
+						            : payload.data;
+						
+						          if (!first || !first.category || !first.summary) {
+						            uni.showToast({ title: 'AI结果无效', icon: 'none' });
+						            return;
+						          }
+						
+						          this.aiClassification = {
+						            category: first.category,
+						            summary: first.summary,
+						            confidence: typeof first.confidence === 'number' ? first.confidence : null
+						          };
+						          this.hasUploaded = true; // 标记为已上传
+						          uni.showToast({ title: 'AI分析完成', icon: 'success' });
+						        } else {
+						          uni.showToast({ title: payload.error || '分析失败', icon: 'none' });
+						        }
+						      },
+						      fail: (err) => {
+						        uni.showToast({ title: '上传失败', icon: 'none' });
+						        console.error('Upload failed:', err);
+						      },
+						      complete: () => {
+						        uni.hideLoading();
+						      }
+						    });
+						  } catch (error) {
+						    uni.hideLoading();
+						    uni.showToast({ title: '处理失败', icon: 'none' });
+						    console.error('processFileWithAI error:', error);
+						  }
+						},
+			
+			//处理ai分析响应
+			handleAIResponse(res) {
+			  let payload;
+			  try {
+			    // 兼容 uploadFile 返回的字符串 和 request 返回的对象
+			    payload = typeof res.data === 'string' ? JSON.parse(res.data) : res.data;
+			  } catch (e) {
+			    uni.showToast({ title: '解析失败', icon: 'none' });
+			    console.error('非 JSON 响应:', res.data);
+			    uni.hideLoading();
+			    this.isAnalyzing = false;
+			    return;
+			  }
+			
+			  if (payload.success) {
+			    const first = Array.isArray(payload.data?.experiences)
+			      ? payload.data.experiences[0]
+			      : payload.data;
+			
+			    if (!first || !first.category || !first.summary) {
+			      uni.showToast({ title: 'AI结果无效', icon: 'none' });
+			    } else {
+			      this.aiClassification = {
+			        category: first.category,
+			        summary: first.summary,
+			        confidence: typeof first.confidence === 'number' ? first.confidence : null
+			      };
+			      this.hasUploaded = true;
+			      uni.showToast({ title: 'AI分析完成', icon: 'success' });
+			    }
+			  } else {
+			    uni.showToast({ 
+			      title: payload.error?.message || payload.error || '分析失败', 
+			      icon: 'none' 
+			    });
+			  }
+			
+			  uni.hideLoading();
+			  this.isAnalyzing = false;
+			},
 			// 移除文件
 			removeFile() {
 				this.selectedFile = null
 				this.aiClassification = null
+				this.hasUploaded = false;
 			},
 			
 			// 格式化文件大小
@@ -232,20 +283,6 @@
 				return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 			},
 			
-			onStartDateChange(e) {
-				this.startDate = e.detail.value
-			},
-			
-			onEndDateChange(e) {
-				this.endDate = e.detail.value
-			},
-			
-			formatDateForPicker(date) {
-				const year = date.getFullYear()
-				const month = (date.getMonth() + 1).toString().padStart(2, '0')
-				const day = date.getDate().toString().padStart(2, '0')
-				return `${year}-${month}-${day}`
-			},
 			
 			// 加载编辑的记录
 			loadEditRecord(recordId) {
@@ -257,8 +294,6 @@
 						name: record.fileName,
 						size: record.fileSize
 					}
-					this.startDate = record.startDate
-					this.endDate = record.endDate
 					this.note = record.note || ''
 					this.aiClassification = {
 						category: record.category,
@@ -273,7 +308,6 @@
 			  console.log('点击保存按钮，当前状态:', {
 			    canSave: this.canSave,
 			    selectedFile: !!this.selectedFile,
-			    startDate: this.startDate,
 			    aiClassification: this.aiClassification
 			  });
 			  
@@ -517,7 +551,17 @@
 		border-radius: 20rpx;
 		margin-bottom: 20rpx;
 	}
-	
+	.analyze-btn {
+	  width: 100%;
+	  background-color: #667eea;
+	  color: white;
+	  border: none;
+	  border-radius: 15rpx;
+	  padding: 25rpx 0;
+	  font-size: 28rpx;
+	  font-weight: bold;
+	  margin-top: 20rpx;
+	}
 	.tag-text {
 		font-size: 24rpx;
 		font-weight: bold;

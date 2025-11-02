@@ -13,30 +13,6 @@
 			}
 		},
 		{
-			"path": "pages/statistics/statistics",
-			"style": {
-				"navigationBarTitleText": "统计"
-			}
-		},
-		{
-			"path": "pages/ai-config/ai-config",
-			"style": {
-				"navigationBarTitleText": "智能体配置"
-			}
-		},
-		{
-			"path": "pages/voice-config/voice-config",
-			"style": {
-				"navigationBarTitleText": "语音识别配置"
-			}
-		},
-		{
-			"path": "pages/chat/chat",
-			"style": {
-				"navigationBarTitleText": "AI小助手"
-			}
-		},
-		{
 			"path": "pages/profile/profile",
 			"style": {
 				"navigationBarTitleText": "我的"

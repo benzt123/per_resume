@@ -78,38 +78,45 @@ const upload = multer({
 });
 
 
-// API 接口：AI 分析文件（兼容单条或多条）
+// API 接口：AI 分析文件
 app.post('/api/ai/classify', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: '未上传文件' });
   }
-    console.log('AI分析文件信息:', {
-    filename: req.file.filename,
-    path: req.file.path,
-    size: req.file.size
-  });
+
+  const note = req.body.note ? req.body.note.trim() : ''; // 获取用户备注
+  const filePath = req.file.path;
+  const filename = req.file.originalname;
+
+  console.log('AI分析文件:', { filename, size: req.file.size, hasNote: !!note });
+
   let connection;
   try {
-    const filePath = req.file.path;
-    const text = await extractText(filePath, req.file.originalname);
+    // 1. 提取文件中的文本
+    const fileText = await extractText(filePath, filename);
 
-    if (!text || text.length === 0) {
-      return res.status(400).json({ error: '无法提取内容' });
+    if (!fileText || fileText.length === 0) {
+      return res.status(400).json({ error: '无法从文件中提取内容' });
     }
 
-    // analyzeWithQwen 目前返回：{ category, summary, confidence }
-    const result = await analyzeWithQwen(text);
+    // 2. 合并文件内容 + 用户备注
+    let finalText = fileText;
+    if (note) {
+      finalText += `\n\n--- 用户补充说明 ---\n${note}`;
+    }
 
-    // 统一成数组，兼容未来可能返回 { experiences: [...] }
+    console.log('合并后的输入文本长度:', finalText.length);
+
+    // 3. 调用 AI 进行分析
+    const result = await analyzeWithQwen(finalText); // 现在 AI 能看到完整上下文！
+
     const items = Array.isArray(result?.experiences) ? result.experiences : [result];
-
-    // 过滤/清洗一遍
     const cleaned = items
       .filter(Boolean)
       .map(x => ({
         category: x.category,
         summary: x.summary,
-        confidence: (typeof x.confidence === 'number' ? x.confidence : null)
+        confidence: typeof x.confidence === 'number' ? x.confidence : null
       }))
       .filter(x => x.category && x.summary);
 
@@ -117,17 +124,13 @@ app.post('/api/ai/classify', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'AI 未产出有效经历' });
     }
 
-    // 这里当只有1条时，直接返回“单对象”
-    // 多条时再返回 { experiences: [...] }
     res.json({
       success: true,
       message: `成功导入 ${cleaned.length} 条经历`,
       data: cleaned.length === 1 ? cleaned[0] : { experiences: cleaned }
     });
-
   } catch (err) {
-    if (connection) await connection.rollback();
-    console.error('AI 分析失败 (server):', err);
+    console.error('AI 分析失败:', err);
     res.status(500).json({ error: '处理失败', details: err.message });
   } finally {
     if (connection) connection.release();

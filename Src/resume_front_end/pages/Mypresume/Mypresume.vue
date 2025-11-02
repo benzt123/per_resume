@@ -21,17 +21,13 @@
             <span class="title-date">{{ item.date }}</span>
           </div>
           <div class="button-group">
-            <button class="download-btn" @click="downloadImage(item.img, item.title)">
-              <span class="download-icon">↓</span>
-              <span class="download-text">下载简历</span>
-            </button>
             <button class="delete-btn" @click="deleteResume(index)">
               <span class="delete-icon">×</span>
               <span class="delete-text">删除</span>
             </button>
             <button class="edit-btn" @click="previewResume(index)">
               <span class="edit-icon">✎</span>
-              <span class="edit-text">查看修改</span>
+              <span class="edit-text">编辑下载</span>
             </button>
           </div>
         </div>
