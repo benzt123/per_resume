@@ -498,7 +498,7 @@ app.post('/api/generate-resume', async (req, res) => {
 
     // 1. 获取用户 profile（取最新一条）
     const [profileRows] = await connection.execute(
-      'SELECT name, phone, email, school, education, graduation_year, gpa FROM profile ORDER BY id DESC LIMIT 1'
+      'SELECT * FROM profile ORDER BY id DESC LIMIT 1'
     );
     if (profileRows.length === 0) {
       return res.status(400).json({ error: '请先完善个人基本信息' });
@@ -513,12 +513,19 @@ app.post('/api/generate-resume', async (req, res) => {
     // 3. 调用 AI 生成完整简历
     const markdown = await generateResumeWithAI(job, profile, expRows);
 
-    // 4. 返回结果
+    // 4. 拼接头像完整路径
+    const serverBaseUrl = `${req.protocol}://${req.get('host')}`; // 自动识别 localhost:3000
+    let fullAvatarUrl = profile.avatar.startsWith('http')
+      ? profile.avatar
+      : `${serverBaseUrl}${profile.avatar}`;
+    // 5. 返回结果
     res.json({
       id: `resume_${Date.now()}`,
       title: `${job}简历`,
-      date: new Date().toISOString().split('T')[0].replace(/-/g, '/'),
-      markdown
+      date: new Date().toLocaleDateString('zh-CN').replace(/\//g, '/'),
+      markdown,
+      img: fullAvatarUrl,
+      imgLoaded: true
     });
 
   } catch (err) {

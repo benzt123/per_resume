@@ -1,29 +1,25 @@
 <template>
   <div class="my-resume">
+    <!-- 顶部标题区 -->
+    <div class="page-header">
+      <div class="header-left">
+        <div class="title">我的简历</div>
+        <div class="subtitle">已保存 {{ resumes.length }} 份简历预览</div>
+      </div>
+      <div class="header-actions">
+        <button class="primary-btn" @click="goMakeResume">生成新简历</button>
+      </div>
+    </div>
     <div class="resume-list">
       <div v-for="(item, index) in resumes" :key="index" class="resume-card">
-        <!-- 日期标签 -->
-        <div class="date-badge">{{ item.date }}</div>
-        
-        <!-- 图片区域 -->
-        <div class="image-container">
-          <div v-if="!item.imgLoaded" class="image-placeholder">
-            <div class="loading-spinner"></div>
-            <span>加载中...</span>
-          </div>
-          <img 
-            v-else
-            :src="item.img" 
-            alt="resume preview" 
-            class="resume-img"
-            @load="item.imgLoaded = true"
-            @error="handleImageError(index)"
-          />
-        </div>
+        <!-- 预览图片已移除，仅保留标题与操作按钮 -->
         
         <!-- 标题和按钮区域 -->
         <div class="info-section">
-          <div class="resume-title">{{ item.title }}</div>
+          <div class="resume-title">
+            <span class="title-text">{{ item.title }}</span>
+            <span class="title-date">{{ item.date }}</span>
+          </div>
           <div class="button-group">
             <button class="download-btn" @click="downloadImage(item.img, item.title)">
               <span class="download-icon">↓</span>
@@ -33,9 +29,9 @@
               <span class="delete-icon">×</span>
               <span class="delete-text">删除</span>
             </button>
-            <button class="delete-btn" @click="previewResume(index)">
-              <span class="delete-icon">look</span>
-              <span class="delete-text">查看修改</span>
+            <button class="edit-btn" @click="previewResume(index)">
+              <span class="edit-icon">✎</span>
+              <span class="edit-text">查看修改</span>
             </button>
           </div>
         </div>
@@ -192,6 +188,28 @@ const previewResume = (index) => {
     console.warn('无法跳转到编辑页面')
   }
 }
+
+// 前往生成简历
+const goMakeResume = () => {
+  if (typeof uni !== 'undefined' && uni.navigateTo) {
+    uni.navigateTo({ 
+      url: '/pages/Make_presume/Make_presume',
+      success: () => {
+        console.log('跳转到生成简历页面成功')
+      },
+      fail: (err) => {
+        console.error('跳转失败:', err)
+        uni.showToast({
+          title: '跳转失败',
+          icon: 'none'
+        })
+      }
+    })
+  } else if (typeof window !== 'undefined') {
+    // 浏览器环境 fallback
+    window.location.href = '/#/pages/Make_presume/Make_presume'
+  }
+}
 // 页面加载时从本地存储读取数据
 onMounted(() => {
   loadResumes()
@@ -212,13 +230,65 @@ onShow(() => {
   box-sizing: border-box;
 }
 
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 1000px;
+  margin: 0 auto 16px;
+  padding: 4px 4px 8px;
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #5b3a17;
+}
+
+.subtitle {
+  font-size: 12px;
+  color: #9c7a53;
+}
+
+.primary-btn {
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #ff9f43 0%, #ff7f11 100%);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 6px 16px rgba(255, 159, 67, 0.28);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.primary-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(255, 159, 67, 0.36);
+}
+
+.primary-btn:active {
+  transform: translateY(0);
+}
+
 .resume-list {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 20px;
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto;
 }
+
+/* 单列布局下无需特殊处理最后一个卡片 */
 
 .resume-card {
   background: #ffffff;
@@ -252,8 +322,7 @@ onShow(() => {
 
 .image-container {
   width: 100%;
-  padding: 16px;
-  padding-top: 20px;
+  padding: 14px 14px 16px;
   box-sizing: border-box;
 }
 
@@ -300,31 +369,61 @@ onShow(() => {
 
 .info-section {
   padding: 16px;
-  padding-top: 8px;
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  flex-direction: row;
   align-items: center;
+  gap: 12px;
 }
 
 .resume-title {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   color: #704d20;
   background: linear-gradient(135deg, #ffe1b0 0%, #ffd89a 100%);
   border-radius: 10px;
-  padding: 8px 14px;
-  width: 100%;
-  text-align: center;
-  word-break: break-word;
-  line-height: 1.4;
+  padding: 10px 14px;
+  flex: 1 1 auto;
+  width: auto;
+  max-width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.5;
   box-shadow: 0 2px 4px rgba(112, 77, 32, 0.08);
+  position: relative;
+  padding-right: 108px; /* 为右上角的时间预留空间 */
+}
+
+.title-text {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.title-date {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #6b4a1e;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .button-group {
   display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 8px;
-  width: 100%;
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .download-btn {
@@ -332,17 +431,17 @@ onShow(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  flex: 1;
-  height: 40px;
+  height: 42px;
   background: linear-gradient(135deg, #ffa53b 0%, #ff8c00 100%);
   color: #ffffff;
   border: none;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 500;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 3px 8px rgba(255, 165, 59, 0.3);
+  letter-spacing: 0.2px;
 }
 
 .download-btn:hover {
@@ -361,17 +460,17 @@ onShow(() => {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  flex: 1;
-  height: 40px;
+  height: 42px;
   background: linear-gradient(135deg, #ff6b6b 0%, #ff4757 100%);
   color: #ffffff;
   border: none;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 500;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 3px 8px rgba(255, 107, 107, 0.3);
+  letter-spacing: 0.2px;
 }
 
 .delete-btn:hover {
@@ -380,18 +479,46 @@ onShow(() => {
   box-shadow: 0 5px 12px rgba(255, 107, 107, 0.4);
 }
 
+/* 编辑按钮（查看修改） */
+.edit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 42px;
+  background: linear-gradient(135deg, #5aa2ff 0%, #2f7bff 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 3px 8px rgba(47, 123, 255, 0.28);
+  letter-spacing: 0.2px;
+}
+
+.edit-btn:hover {
+  background: linear-gradient(135deg, #2f7bff 0%, #1f66e6 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 12px rgba(47, 123, 255, 0.36);
+}
+
 .delete-btn:active {
   transform: translateY(0);
   box-shadow: 0 2px 6px rgba(255, 107, 107, 0.3);
 }
 
-.download-icon, .delete-icon {
+.download-icon, .delete-icon, .edit-icon {
   font-size: 16px;
   font-weight: bold;
+  line-height: 1;
 }
 
-.download-text, .delete-text {
-  letter-spacing: 0.5px;
+.download-text, .delete-text, .edit-text {
+  letter-spacing: 0.4px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 /* 空状态样式 */
@@ -439,12 +566,13 @@ onShow(() => {
   
   .resume-title {
     font-size: 13px;
-    padding: 6px 12px;
+    padding: 6px 10px;
+    padding-right: 92px; /* 移动端为时间留出更小空间 */
   }
   
-  .download-btn, .delete-btn {
+  .download-btn, .delete-btn, .edit-btn {
     height: 36px;
-    font-size: 12px;
+    font-size: 12.5px;
   }
   
   .button-group {
@@ -455,16 +583,16 @@ onShow(() => {
 /* 平板适配 */
 @media (min-width: 768px) {
   .resume-list {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
+    grid-template-columns: 1fr;
+    gap: 22px;
   }
 }
 
 /* 大屏适配 */
 @media (min-width: 1024px) {
   .resume-list {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 28px;
+    grid-template-columns: 1fr;
+    gap: 24px;
   }
 }
 </style>

@@ -51,12 +51,12 @@
 		<!-- 经历列表 -->
 		<view class="record-list-section">
 			<view class="section-header">
-				<text class="section-title">最近经历</text>
-				<view class="filter-options">
-					<picker class="filter-picker" mode="selector" :range="timeFilterOptions" :value="selectedTimeFilter" @change="onTimeFilterChange">
-						<view class="picker-display">{{timeFilterOptions[selectedTimeFilter]}}</view>
-					</picker>
-				</view>
+			  <text class="section-title">最近经历</text>
+			  <view class="filter-wrapper">
+			    <picker class="filter-picker" mode="selector" :range="timeFilterOptions" :value="selectedTimeFilter" @change="onTimeFilterChange">
+			      <view class="picker-display">{{timeFilterOptions[selectedTimeFilter]}}</view>
+			    </picker>
+			  </view>
 			</view>
 
 			<!-- 空状态 -->
@@ -696,16 +696,6 @@
 					url: '/pages/index/index'
 				})
 			},
-			goAI() {
-				uni.switchTab({
-					url: '/pages/chat/chat'
-				})
-			},
-			goAbility() {
-				uni.switchTab({
-					url: '/pages/statistics/statistics'
-				})
-			},
 			goMy() {
 				uni.switchTab({
 					url:'/pages/my/my'
@@ -871,7 +861,7 @@
 
 	.section-header {
 		display: flex;
-		justify-content: space-between;
+		justify-content: center;
 		align-items: center;
 		margin-bottom: 30rpx;
 	}
@@ -881,15 +871,24 @@
 		font-weight: bold;
 		color: #333;
 	}
-
-	.filter-picker {
-		background: #f8f9fa;
-		padding: 12rpx 20rpx;
-		border-radius: 20rpx;
-		font-size: 24rpx;
-		color: #666;
+	
+	/* 新增 wrapper，确保 picker 容器高度和对齐可控 */
+	.filter-wrapper {
+	  display: flex;
+	  align-items: center;
+	  height: 48rpx; /* 与标题行高匹配 */
 	}
-
+	
+	.filter-picker {
+	  background: #f8f9fa;
+	  padding: 0 20rpx; /* 垂直 padding 改为 0，用 wrapper 控制高度 */
+	  border-radius: 20rpx;
+	  font-size: 24rpx;
+	  color: #666;
+	  line-height: 48rpx; /* 确保文字垂直居中 */
+	  height: 48rpx;
+	  display: inline-block;
+	}
 	/* 空状态 */
 	.empty-state {
 		text-align: center;

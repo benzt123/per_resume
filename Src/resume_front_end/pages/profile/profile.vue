@@ -47,17 +47,6 @@
 			</view>
 		</view>
 		
-		<!-- 数据管理 -->
-		<view class="data-management">
-			<text class="management-title">数据管理</text>
-			<view class="management-item danger-item" @click="clearAllData">
-				<view class="management-left">
-					<text class="management-icon">🗑️</text>
-					<text class="management-text">清空所有记录</text>
-				</view>
-				<text class="management-arrow">></text>
-			</view>
-		</view>
 	</view>
 </template>
 

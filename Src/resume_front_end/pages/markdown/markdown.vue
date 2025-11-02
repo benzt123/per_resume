@@ -2,13 +2,23 @@
 	  <view class="page">
 		<!-- 左侧：编辑区域 -->
 		<view class="editor-area">
-		  <textarea class="editor" v-model="markdownText" placeholder="在这里输入你的简历 Markdown..."></textarea>
+		  <textarea
+		  		        class="editor"   
+		  		        placeholder="在这里输入你的简历 Markdown..."
+		  		        v-model="markdownText"
+		  		        :maxlength="-1"
+		  		        auto-height
+		  		        adjust-position="false"
+		  		        show-confirm-bar="false"
+		  		        :cursor-spacing="10"
+		  		        @paste="onPaste"
+		  		      ></textarea>
 		  <view class="controls">
 			<button @click="renderPreview">预览</button>
 			<button @click="exportPDF">导出 PDF</button>
 			<button @click="loadSample">加载示例</button>
 			<button @click="clear">清空</button>
-			<!-- 保存并回传到 myResumes（如果来自 Mypresume） -->
+			<button @click="restoreOriginal">恢复原文</button>
 			<button @click="saveResume">保存</button>
 		  </view>
 		</view>
@@ -29,7 +39,9 @@ export default {
     return {
       markdownText: '',
       htmlContent: '',
-      resumeId: null // 存储当前编辑的简历 ID
+      resumeId: null, // 存储当前编辑的简历 ID
+	  originalText: '', // 用来缓存原内容
+	  isSample: false, //是否为示例状态
     }
   },
 
@@ -66,6 +78,7 @@ export default {
         const item = resumes.find(r => String(r.id) === String(id))
         if (item) {
           this.markdownText = item.markdown || ''
+		  this.originalText = this.markdownText //  备份
           // 可选：也保存 title 用于保存时 fallback
           this.currentTitle = item.title || ''
         } else {
@@ -87,7 +100,10 @@ export default {
         uni.showToast({ title: '无效的简历 ID', icon: 'none' })
         return
       }
-
+	  if (this.isSample) {
+	  	        uni.showToast({ title: '请先恢复原文再保存', icon: 'none' })
+	  	        return
+	  	      }
       const key = 'myResumes'
       try {
         let resumes = []
@@ -153,10 +169,14 @@ export default {
     },
 
     loadSample() { 
+	  this.isSample = true
       this.markdownText = sampleText()
       this.renderPreview() 
     },
-    
+    restoreOriginal() {
+            this.markdownText = this.originalText
+            this.renderPreview()
+          },
     clear() { 
       this.markdownText = ''
       this.renderPreview() 
@@ -166,97 +186,361 @@ export default {
 
 function sampleText() {
   return `# 个人简历
-**姓名**：张三
-**求职意向**：前端工程师
 
----
+## 基本信息
+<style>
+.resume-info {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+  color: #2b5c5c;
+}
+.resume-info td {
+  padding: 6px 12px;
+  vertical-align: top;
+  text-align: left;
+}
+.resume-info .photo {
+  width: 120px;
+  text-align: right;
+}
+.resume-info img {
+  width: 100px;
+  height: 120px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+</style>
 
-## 教育背景
-- 2015 - 2019 本科，计算机科学与技术，某某大学
+<table class="resume-info">
+  <tr>
+    <td>
+      <table>
+        <tr>
+          <td>姓名：林晓恩</td>
+          <td>学历：本科</td>
+        </tr>
+        <tr>
+          <td>性别：女</td>
+          <td>专业：临床医学</td>
+        </tr>
+        <tr>
+          <td>籍贯：湖南</td>
+          <td>电话：18888888888</td>
+        </tr>
+        <tr>
+          <td>学校：武汉大学</td>
+          <td>邮箱：188@qq.com</td>
+        </tr>
+      </table>
+    </td>
+    <td class="photo">
+      <img src="你的照片链接或本地路径.jpg" alt="个人照片" />
+    </td>
+  </tr>
+</table>
 
-## 项目经验
-### 简历编辑器 (uni-app)
+
+## 专业技能
+
+- JavaScript / Vue / uni-app
+- HTML5 / CSS3 / 响应式布局
+- Markdown / KaTeX / html2canvas
+- 前端工程化 / Webpack
+
+## 项目与经历
+
+• 实习经历
 - 使用 Markdown + KaTeX 实现可编辑简历，支持公式与代码高亮
 - 导出为 PDF（html2canvas + jsPDF）
 
-## 技能
-- JavaScript / Vue / uni-app
-- Markdown / KaTeX / html2canvas
+## 自我评价
+
+热爱前端技术，具备扎实的编程基础和良好的团队协作能力。善于学习新技术，对用户体验有深刻理解，能够独立完成项目开发。
 `
 }
 </script>
-	<style>
+<style scoped>
 	.page {
 	  display: flex;
-	  flex-direction: row; /* 改为横向排列 */
+	  flex-direction: row;
 	  height: 100vh;
 	  width: 100vw;
-	  overflow: hidden; /* 防止滚动条叠加 */
+	  overflow: hidden;
+	  background: #f5f5f5;
 	}
-
-	/* 左侧编辑区：固定或弹性宽度 */
+	/* 左侧编辑区 - 支持滚动 */
 	.editor-area {
-	  width: 50%; /* 或者用 flex: 1 */
-	  padding: 12px;
+	  width: 50%;
+	  padding: 20px;
 	  background: #fff;
-	  border-right: 1px solid #eee; /* 改为右侧边框 */
+	  border-right: 1px solid #e8e8e8;
 	  display: flex;
 	  flex-direction: column;
 	  box-sizing: border-box;
+	  overflow: hidden; /* 整体隐藏溢出，保证 flex 内部滚动生效 */
 	}
-
+	
 	.editor {
-	  flex: 1; /* 占据剩余高度 */
-	  min-height: 0; /* 防止 flex 子项最小高度干扰 */
+	  flex: 1;
+	  min-height: 0; 
 	  width: 100%;
-	  border: 1px solid #e6e6e6;
-	  padding: 10px;
-	  font-family: monospace;
-	  font-size: 14px;
-	  box-sizing: border-box;
-	  border-radius: 6px;
-	  resize: none; /* 禁用 textarea 默认拖拽 */
-	}
-
-	.controls {
-	  margin-top: 8px;
-	  display: flex;
-	  gap: 8px;
-	}
-
-	button {
-	  padding: 8px 10px;
-	  border-radius: 6px;
-	  border: 1px solid #ddd;
-	  background: #f8f8f8;
-	}
-
-	/* 右侧预览区 */
-	.preview-area {
-	  flex: 1; /* 占据剩余宽度 */
+	  border: 1px solid #d9d9d9;
 	  padding: 16px;
+	  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+	  font-size: 14px;
+	  line-height: 1.6;
+	  box-sizing: border-box;
+	  border-radius: 8px;
+	  resize: none;
 	  background: #fafafa;
-	  overflow-y: auto; /* 允许纵向滚动 */
+	  overflow-y: auto; /*  添加滚动 */
 	}
+	
 
+	
+	.editor:focus {
+	  outline: none;
+	  border-color: #1890ff;
+	  background: #fff;
+	}
+	
+	.controls {
+	  margin-top: 16px;
+	  display: flex;
+	  gap: 10px;
+	  flex-wrap: wrap;
+	}
+	
+	button {
+	  padding: 8px 16px;
+	  border-radius: 6px;
+	  border: 1px solid #d9d9d9;
+	  background: #fff;
+	  color: #333;
+	  font-size: 14px;
+	  cursor: pointer;
+	  transition: all 0.2s;
+	}
+	
+	button:hover {
+	  background: #f0f0f0;
+	  border-color: #bbb;
+	}
+	
+	button:active {
+	  background: #e6e6e6;
+	}
+	
+	/* 右侧预览区 - 支持滚动 */
+	.preview-area {
+	  flex: 1;
+	  padding: 20px;
+	  background: #fff;
+	  overflow-y: auto; /* 添加滚动 */
+	}
+	
 	.preview-inner {
-	  max-width: 900px;
+	  max-width: 800px;
 	  margin: 0 auto;
 	  background: #fff;
-	  padding: 20px;
-	  box-shadow: 0 0 0 1px rgba(0,0,0,0.03);
-	  border-radius: 6px;
-	  min-height: 100%; /* 防止内容过少时高度塌陷 */
+	  padding: 40px 50px;
+	  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+	  border-radius: 8px;
+	  min-height: 100%;
+	  font-family: 'PingFang SC', 'Microsoft YaHei', 'SimHei', sans-serif;
+	  line-height: 1.6;
+	  color: #333;
 	}
-
-	.hljs {
-	  background: #f6f8fa;
-	  padding: 8px;
-	  border-radius: 4px;
-	  overflow: auto;
+	
+	/* ========== 简历预览特定样式 ========== */
+	
+	/* 主标题 - 无下划线 */
+	.page ::v-deep .preview-inner h1 {
+	  font-size: 22px;
+	  font-weight: 600;
+	  margin-bottom: 25px;
+	  color: #000;
+	  text-align: center;
+	  padding-bottom: 0;
+	  border-bottom: none;
 	}
-
-	.katex {
-	  font-size: 1.05em;
+	
+	/* 章节标题 - 蓝色字体 + 蓝色下划线 */
+	.page ::v-deep .preview-inner h2 {
+	  font-size: 16px;
+	  font-weight: 600;
+	  margin: 28px 0 15px 0;
+	  color: #1890ff;
+	  padding-bottom: 8px;
+	  border-bottom: 2px solid #1890ff;
+	}
+	
+	/* 基本信息表格样式 - 调整单元格宽度 */
+	.page ::v-deep .preview-inner .info-table {
+	  width: 100%;
+	  border-collapse: collapse;
+	  margin: 12px 0 20px 0;
+	  font-size: 14px;
+	  border: 1px solid #e8e8e8;
+	}
+	
+	.page ::v-deep .preview-inner .info-table td {
+	  padding: 6px 10px;
+	  border: 1px solid #e8e8e8;
+	  color: #333;
+	  line-height: 1.4;
+	  white-space: nowrap;
+	}
+	
+	/* 第一行：4个单元格等宽 */
+	.page ::v-deep .preview-inner .info-table tr:first-child td {
+	  width: 25%;
+	}
+	
+	/* 第二行：调整单元格宽度比例 */
+	.page ::v-deep .preview-inner .info-table tr:nth-child(2) td:nth-child(1) { /* 毕业院校 */
+	  width: 28%;
+	}
+	.page ::v-deep .preview-inner .info-table tr:nth-child(2) td:nth-child(2) { /* 学历 */
+	  width: 12%;
+	}
+	.page ::v-deep .preview-inner .info-table tr:nth-child(2) td:nth-child(3) { /* 专业 */
+	  width: 30%;
+	}
+	.page ::v-deep .preview-inner .info-table tr:nth-child(2) td:nth-child(4) { /* 毕业年份 */
+	  width: 15%;
+	}
+	.page ::v-deep .preview-inner .info-table tr:nth-child(2) td:nth-child(5) { /* GPA */
+	  width: 15%;
+	}
+	
+	/* 第三行：联系电话和邮箱各占2.5个单元格 */
+	.page ::v-deep .preview-inner .info-table tr:nth-child(3) td:nth-child(1) { /* 联系电话 */
+	  width: 50%;
+	}
+	.page ::v-deep .preview-inner .info-table tr:nth-child(3) td:nth-child(2) { /* 邮箱 */
+	  width: 50%;
+	}
+	
+	/* 第四行：求职意向合并单元格 */
+	.page ::v-deep .preview-inner .info-table tr:nth-child(4) td {
+	  width: 100%;
+	  text-align: center;
+	}
+	
+	/* 专业技能列表样式 */
+	.page ::v-deep .preview-inner h2:nth-of-type(2) + ul {
+	  margin: 12px 0 25px 0;
+	  padding-left: 20px;
+	}
+	
+	.page ::v-deep .preview-inner h2:nth-of-type(2) + ul li {
+	  color: #333;
+	  font-size: 14px;
+	  line-height: 1.8;
+	  margin-bottom: 8px;
+	}
+	
+	/* 项目与经历样式 */
+	.page ::v-deep .preview-inner h2:nth-of-type(3) + ul {
+	  margin: 12px 0 25px 0;
+	  padding-left: 20px;
+	}
+	
+	.page ::v-deep .preview-inner h2:nth-of-type(3) + ul li {
+	  margin-bottom: 12px;
+	  font-size: 14px;
+	  line-height: 1.6;
+	  color: #333;
+	}
+	
+	.page ::v-deep .preview-inner h2:nth-of-type(3) + ul li ul {
+	  margin: 8px 0 0 20px;
+	  padding-left: 0;
+	}
+	
+	.page ::v-deep .preview-inner h2:nth-of-type(3) + ul li ul li {
+	  margin-bottom: 6px;
+	  color: #666;
+	  font-size: 13px;
+	  line-height: 1.5;
+	}
+	
+	/* 自我评价样式 */
+	.page ::v-deep .preview-inner h2:nth-of-type(4) + p {
+	  font-size: 14px;
+	  line-height: 1.8;
+	  color: #333;
+	  margin: 15px 0 20px 0;
+	  text-align: justify;
+	  padding: 0;
+	}
+	
+	/* 通用列表样式 */
+	.page ::v-deep .preview-inner ul {
+	  margin: 12px 0 20px 0;
+	  padding-left: 20px;
+	}
+	
+	.page ::v-deep .preview-inner li {
+	  margin-bottom: 8px;
+	  font-size: 14px;
+	  line-height: 1.6;
+	  color: #333;
+	}
+	
+	.page ::v-deep .preview-inner strong {
+	  font-weight: 600;
+	  color: #000;
+	}
+	
+	/* 确保内容紧凑 */
+	.page ::v-deep .preview-inner * {
+	  margin-top: 0;
+	}
+	
+	.page ::v-deep .preview-inner h1:first-child {
+	  margin-top: 0;
+	}
+	
+	/* 响应式调整 - 只在非常小的屏幕上变为上下布局 */
+	@media (max-width: 480px) {
+	  .page {
+	    flex-direction: column;
+	    height: auto;
+	  }
+	  
+	  .editor-area {
+	    width: 100%;
+	    border-right: none;
+	    border-bottom: 1px solid #e8e8e8;
+	  }
+	  
+	  .preview-area {
+	    width: 100%;
+	  }
+	  
+	  .preview-inner {
+	    padding: 20px;
+	  }
+	  
+	  .page ::v-deep .preview-inner .info-table {
+	    font-size: 12px;
+	  }
+	  
+	  .page ::v-deep .preview-inner .info-table td {
+	    padding: 4px 6px;
+	    white-space: normal;
+	  }
+	  
+	  /* 移动端调整标题样式 */
+	  .page ::v-deep .preview-inner h1 {
+	    font-size: 18px;
+	  }
+	  
+	  .page ::v-deep .preview-inner h2 {
+	    font-size: 14px;
+	  }
 	}
 	</style>

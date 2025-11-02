@@ -95,18 +95,6 @@
 				"selectedIconPath": "static/tab-home-active.png"
 			},
 			{
-				"pagePath": "pages/chat/chat",
-				"text": "AI小助手",
-				"iconPath": "static/tab-chat.png",
-				"selectedIconPath": "static/tab-chat-active.png"
-			},
-			{
-				"pagePath": "pages/statistics/statistics", 
-				"text": "能力图",
-				"iconPath": "static/tab-stats.png",
-				"selectedIconPath": "static/tab-stats-active.png"
-			},
-			{
 				"pagePath": "pages/profile/profile",
 				"text": "我的",
 				"iconPath": "static/tab-profile.png",

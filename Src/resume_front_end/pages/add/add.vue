@@ -31,43 +31,6 @@
 			</view>
 		</view>
 		
-		<!-- 时间选择 -->
-		<view class="time-section">
-			<text class="section-title">经历时间</text>
-			<view class="time-container">
-				<!-- 开始时间 -->
-				<view class="time-item">
-					<text class="time-label">开始时间</text>
-					<picker class="date-picker" mode="date" :value="startDate" @change="onStartDateChange">
-						<view class="time-picker">
-							<text class="time-text">{{startDate || '选择开始日期'}}</text>
-							<text class="time-arrow">📅</text>
-						</view>
-					</picker>
-				</view>
-				
-				<!-- 结束时间 -->
-				<view class="time-item">
-					<text class="time-label">结束时间</text>
-					<picker class="date-picker" mode="date" :value="endDate" @change="onEndDateChange">
-						<view class="time-picker">
-							<text class="time-text">{{endDate || '选择结束日期'}}</text>
-							<text class="time-arrow">📅</text>
-						</view>
-					</picker>
-				</view>
-			</view>
-		</view>
-		
-		<!-- 备注输入 -->
-		<view class="note-section">
-			<text class="section-title">补充说明（可选）</text>
-			<textarea class="note-input" 
-					  v-model="note" 
-					  placeholder="可以补充一些经历的背景信息..." 
-					  maxlength="200"/>
-		</view>
-		
 		<!-- AI分类结果预览 -->
 		<view v-if="aiClassification" class="ai-preview-section">
 			<text class="section-title">AI分类结果</text>
@@ -156,6 +119,34 @@
 				}
 			},
 			
+			// AI 失败时按备注进行最小化保存
+			async saveRecordOnAIFailure() {
+			  const category = '未分类';
+			  const noteTrimmed = (this.note || '').trim();
+			  const summary = noteTrimmed || 'AI分析失败';
+			  const confidence = null;
+			  try {
+				await uni.request({
+				  url: `${API_BASE}/api/experience/add`,
+				  method: 'POST',
+				  header: { 'Content-Type': 'application/json' },
+				  data: {
+					category,
+					summary,
+					confidence,
+					fileName: this.selectedFile?.name || '',
+					fileSize: this.selectedFile?.size || 0,
+					startDate: this.startDate || '',
+					endDate: this.endDate || '',
+					note: this.note || ''
+				  }
+				});
+				uni.showToast({ title: '已保存备注', icon: 'success' });
+			  } catch (e) {
+				console.error('AI失败后保存备注失败：', e);
+				// 失败时不再抛出，避免中断用户流程
+			  }
+			},
 			async processFileWithAI(file) {
 			  try {
 			    // 调用AI分析，但不保存
@@ -174,6 +165,7 @@
 			    console.error('AI分析失败:', error)
 			  }
 			},
+
 			
 			// 调用AI分类API（只分析，不保存）
 			async callAIClassificationAPI(file) {
