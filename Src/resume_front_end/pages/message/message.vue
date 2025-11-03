@@ -156,16 +156,16 @@
         />
       </div>
 
-      <!-- 地址 -->
+      <!-- 专业 -->
       <div class="form-item">
         <div class="item-label">
-          <text>地址</text>
+          <text>专业</text>
         </div>
         <input 
           class="item-input" 
           v-model="formData.address" 
           :disabled="!isEditMode"
-          placeholder="请输入居住地址"
+          placeholder="请输入专业"
           placeholder-class="placeholder"
         />
       </div>

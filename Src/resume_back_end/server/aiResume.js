@@ -67,7 +67,7 @@ function buildResumePrompt(job, profile, experiences) {
           <td>GPA：${profile.gpa || '未提供'}</td>
         </tr>
         <tr>
-          <td>专业：${profile.address || '未提供'}</td>
+          <td>专业：${profile.major || '未提供'}</td>
           <td>电话：${profile.phone || '未提供'}</td>
         </tr>
         <tr>

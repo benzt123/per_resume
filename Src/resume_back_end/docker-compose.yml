@@ -1,0 +1,41 @@
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: per_resume_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: per_resume_db
+      MYSQL_USER: per_resume_user
+      MYSQL_PASSWORD: example_pw
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # init scripts in this folder will be executed on first start
+      - ./server/mysql-init:/docker-entrypoint-initdb.d
+    ports:
+      # map to different host port if 3306 already in use
+      - '3307:3306'
+    restart: unless-stopped
+
+  resume-backend:
+    build: .
+    container_name: per_resume_backend
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=per_resume_user
+      - DB_PASS=example_pw
+      - DB_NAME=per_resume_db
+    volumes:
+      # persist uploads and allow editing from host
+      - ./server/uploads:/usr/src/app/server/uploads
+    depends_on:
+      - mysql
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
