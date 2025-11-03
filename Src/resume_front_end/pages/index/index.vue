@@ -696,6 +696,11 @@
 					url: '/pages/index/index'
 				})
 			},
+			goAbility() {
+				uni.switchTab({
+					url: '/pages/statistics/statistics'
+				})
+			},
 			goMy() {
 				uni.switchTab({
 					url:'/pages/my/my'

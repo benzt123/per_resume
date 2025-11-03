@@ -7,6 +7,12 @@
 			}
 		},
 		{
+			"path": "pages/statistics/statistics",
+			"style": {
+				"navigationBarTitleText": "统计"
+			}
+		},
+		{
 			"path": "pages/add/add",
 			"style": {
 				"navigationBarTitleText": "记一笔"
@@ -69,6 +75,12 @@
 				"text": "首页",
 				"iconPath": "static/tab-home.png",
 				"selectedIconPath": "static/tab-home-active.png"
+			},
+			{
+				"pagePath": "pages/statistics/statistics", 
+				"text": "能力图",
+				"iconPath": "static/tab-stats.png",
+				"selectedIconPath": "static/tab-stats-active.png"
 			},
 			{
 				"pagePath": "pages/profile/profile",

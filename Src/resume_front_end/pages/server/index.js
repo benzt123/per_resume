@@ -540,6 +540,50 @@ app.post('/api/generate-resume', async (req, res) => {
 });
 // ===== 新增结束 =====
 
+// ===== 修改：能力图分析 API (纯计算，后端查询经历，无缓存) =====
+const { analyzeCapabilitiesWithAI } = require('./aiResume');
+
+// GET 方式获取分析结果，后端自己查询经历
+app.get('/api/capability-analysis', async (req, res) => {
+  const { job } = req.query; // 通过查询参数传递岗位名称
+
+  if (!job?.trim()) {
+    return res.status(400).json({ error: '岗位名称 (job) 为必填项' });
+  }
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    // 1. 查询最新 profile (可选，取决于 AI 分析是否需要)
+    const [profileRows] = await connection.execute(
+      'SELECT * FROM profile ORDER BY id DESC LIMIT 1'
+    );
+    if (profileRows.length === 0) {
+      return res.status(400).json({ error: '请先完善个人基本信息' });
+    }
+    // const profile = profileRows[0]; // Profile 可能对分析有帮助，但主要用经历
+
+    // 2. 查询所有经历
+    const [expRows] = await connection.execute(
+      'SELECT category, summary, confidence FROM experience ORDER BY updated_time DESC'
+    );
+
+    // 3. 调用 AI 生成分析报告
+    const analysisResult = await analyzeCapabilitiesWithAI(job, expRows);
+
+    // 4. 直接返回结果，不进行任何缓存
+    res.status(200).json(analysisResult);
+
+  } catch (err) {
+    console.error('[API] 获取/生成能力图分析失败:', err);
+    res.status(500).json({ error: err.message || '分析失败，请重试' });
+  } finally {
+    if (connection) connection.release();
+  }
+});
+// ===== 修改结束 =====
+
 // 删除一条经历
 app.delete('/api/experience/:id', async (req, res) => {
   const { id } = req.params;

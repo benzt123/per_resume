@@ -146,4 +146,114 @@ async function generateResumeWithAI(job, profile, experiences) {
   }
 }
 
-module.exports = { generateResumeWithAI };
+
+function buildCapabilityAnalysisPrompt(job, experiences) {
+  const expList = experiences
+    .map(e => `[${e.category}] ${e.summary} (置信度: ${e.confidence?.toFixed(2) || 'N/A'})`)
+    .join('\n');
+
+  return `
+你是一位专业的人力资源分析师或职业规划顾问。请分析求职者针对岗位 "${job}" 的经历，并生成一份能力图分析报告。
+
+## 分析目标
+1.  **识别能力缺口**：根据 "${job}" 这个岗位的要求，分析求职者当前经历中缺少哪些关键技能或经验。
+2.  **评估经历匹配度**：评估现有经历与目标岗位的相关性。
+3.  **提供改进建议**：针对识别出的能力缺口，给出具体、可操作的提升建议。
+
+## 输入数据
+以下是求职者提供的经历列表：
+${expList || '求职者暂无任何经历。'}
+
+## 输出要求
+请严格按以下 JSON 格式输出分析结果，不要包含任何解释性文字或 Markdown 代码块标记。输出必须是有效的 JSON 格式。
+
+{
+  "job": "string, 分析的目标岗位",
+  "summary": {
+    "overallMatch": "string, 整体匹配度评价 (如：匹配度较高，具备核心技能；匹配度一般，存在部分缺口；匹配度较低，核心经验不足)",
+    "strengths": ["string, 求职者的优势或与岗位匹配的经历"], // 可选
+    "weaknesses": ["string, 求职者的主要短板或能力缺口"] // 可选
+  },
+  "capabilities": [
+    {
+      "name": "string, 能力名称 (如：沟通能力, 项目管理, 技术栈等)",
+      "level": "string, 当前具备水平 (如：精通, 熟练, 了解, 缺失)",
+      "relevance": "string, 与岗位的相关性 (如：高度相关, 相关, 一般, 不相关)",
+      "evidence": ["string, 支持该水平判断的具体经历或技能点 (来自输入的经历列表)"], // 如果 level 为 '缺失'，此项为空数组
+      "improvement": "string, 如何提升此项能力的具体建议" // 如果 level 为 '精通' 或 '熟练'，此项可选或为空
+    }
+  ],
+  "suggestions": [
+    {
+      "type": "string, 建议类型 (如：技能提升, 项目补充, 实习建议, 证书考取)",
+      "description": "string, 具体建议内容"
+    }
+  ]
+}
+
+## 注意事项
+- 分析应基于实际经历列表，避免编造未提供的信息。
+- 对于求职者完全没有涉及的领域，应标记为“缺失”。
+- 建议应具体、可操作，最好能结合当前行业趋势或岗位需求。
+- 语言应客观、专业、有建设性。
+`;
+}
+
+/**
+ * 调用 AI 生成能力图分析报告
+ * @param {string} job - 目标岗位
+ * @param {Array} experiences - 用户的经历数组
+ * @returns {Promise<Object>} - 解析后的 JSON 分析结果
+ */
+async function analyzeCapabilitiesWithAI(job, experiences) {
+  const prompt = buildCapabilityAnalysisPrompt(job, experiences);
+
+  try {
+    console.log(`[AI Analysis] 正在分析岗位 "${job}" 的能力图...`); // 调试日志
+    const response = await axios.post(
+      'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation', // 注意：URL 末尾多了一个空格，已修正
+      {
+        model: MODEL,
+        input: { messages: [{ role: 'user', content: prompt }] },
+        parameters: { result_format: 'message' }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${DASHSCOPE_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 300000 // 增加超时时间，分析可能更复杂
+      }
+    );
+
+    let content = response.data.output.choices[0].message.content;
+    console.log(`[AI Analysis] Raw AI Response: ${content}`); // 调试日志
+
+    // 尝试移除可能的 Markdown 代码块标记
+    content = content.replace(/^```(?:json)?\s*/i, '').replace(/```$/s, '').trim();
+    console.log(`[AI Analysis] Cleaned Content: ${content}`); // 调试日志
+
+    // 解析 JSON
+    let parsedResult;
+    try {
+        parsedResult = JSON.parse(content);
+    } catch (jsonErr) {
+        console.error('[AI Analysis] JSON 解析失败:', jsonErr.message);
+        console.error('[AI Analysis] 问题内容:', content);
+        throw new Error(`AI 返回的不是有效 JSON 格式: ${jsonErr.message}`);
+    }
+
+    console.log(`[AI Analysis] Parsed Result:`, parsedResult); // 调试日志
+    return parsedResult;
+  } catch (err) {
+    console.error('[AI Analysis] 能力图分析 AI 调用失败:', err.response?.data || err.message);
+    if (err.response) {
+        console.error('[AI Analysis] HTTP Status:', err.response.status);
+        console.error('[AI Analysis] Response Data:', err.response.data);
+    }
+    throw new Error(`AI 分析失败：${err.message || '未知错误'}`);
+  }
+}
+
+// 导出新函数
+module.exports = { generateResumeWithAI, analyzeCapabilitiesWithAI };
