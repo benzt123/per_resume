@@ -7,6 +7,7 @@
     "dev:h5": "echo 'Use HBuilderX to run H5. This script is a placeholder.'"
   },
   "dependencies": {
+    "@qiun/ucharts": "^2.5.0-20230101",
     "@shelf/aws-lambda-tesseract": "^5.2.0",
     "axios": "^1.13.0",
     "body-parser": "^2.2.0",

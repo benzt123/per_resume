@@ -2,10 +2,11 @@
 	<view class="container">
 		<!-- 岗位选择器 -->
 		<view class="job-selector">
-			<input 
+			<textarea
 				v-model="targetJob" 
 				placeholder="请输入目标岗位名称" 
 				class="job-input"
+				maxlength="200"
 				@confirm="fetchAnalysis"
 			/>
 			<button @click="fetchAnalysis" :disabled="loading" class="analyze-btn">
@@ -40,22 +41,23 @@
 				</view>
 			</view>
 
-			<!-- 能力雷达图 (模拟) -->
-			<view class="radar-section">
-				<text class="section-title">能力雷达图</text>
-				<view class="radar-container">
-					<!-- 这里可以用 uCharts 或其他图表库绘制真正的雷达图 -->
-					<!-- 为简化，先用列表模拟 -->
-					<view class="radar-list">
-						<view v-for="(cap, index) in analysisResult.capabilities" :key="cap.name" class="radar-item">
-							<view class="radar-item-left">
-								<text class="radar-name">{{ cap.name }}</text>
-								<text class="radar-relevance">{{ cap.relevance }}</text>
-							</view>
-							<view class="radar-item-right">
-								<text class="radar-level" :class="getLevelClass(cap.level)">{{ cap.level }}</text>
-							</view>
-						</view>
+			<!-- 能力可视化图表 (使用 uCharts) -->
+			<view class="chart-section">
+				<text class="section-title">能力分布</text>
+				<view class="chart-container">
+					<canvas
+						v-if="analysisResult.capabilities && analysisResult.capabilities.length > 0"
+						id="capabilityChart"
+						ref="capabilityChartRef"
+						class="q-charts"
+						:canvas-id="'capabilityChart'"
+						:style="{ width: chartWidth + 'px', height: chartHeight + 'px' }"
+						@touchstart="touchStart"
+						@touchmove="touchMove"
+						@touchend="touchEnd"
+					></canvas>
+					<view v-else class="empty-chart">
+						<text class="empty-text">暂无能力数据</text>
 					</view>
 				</view>
 			</view>
@@ -113,15 +115,27 @@
 </template>
 
 <script>
+// 引入 uCharts
+import uCharts from '@qiun/ucharts';
+
 export default {
 	data() {
 		return {
+			// ... (其他 data 不变)
 			targetJob: '',
 			analysisResult: null,
 			loading: false,
-			error: null
+			error: null,
+			// uCharts 相关
+			chartInstance: null,
+			chartWidth: 0,
+			chartHeight: 0,
+			// 添加 canvasId，确保唯一性，虽然 ref 也可以用
+			canvasId: 'capabilityChart',
+			// 添加一个标志，表示页面是否已经准备好
+			pageReady: false 
 		}
-	},
+	},	
 	onLoad() {
 		// --- 保持不变 ---
 		const savedResumes = uni.getStorageSync('myResumes') || [];
@@ -146,13 +160,40 @@ export default {
 		}
 		// --- 保持不变 ---
 	},
+	onReady() {
+	  this.pageReady = true;
+	},
+	watch: {
+	  'analysisResult.capabilities': {
+		handler(newVal) {
+		  if (this.pageReady && newVal && newVal.length > 0) {
+			// 等待 DOM 更新后再测量
+			this.$nextTick(() => {
+			  const query = uni.createSelectorQuery().in(this);
+			  query.select('.chart-container').boundingClientRect(data => {
+				if (data && data.width > 0) {
+				  this.chartWidth = data.width * 0.9;
+				  this.chartHeight = 400;
+				  this.initChartAndRender(newVal);
+				} else {
+				  console.warn('未获取到 chart-container 宽高，延迟重试');
+				  setTimeout(() => this.renderChart(newVal), 300);
+				}
+			  }).exec();
+			});
+		  }
+		},
+		deep: true
+	  }
+	},
 	methods: {
 		// 生成用于本地缓存的键
 		getCacheKey(job) {
 			return `capability_analysis_${job}`;
 		},
 
-async fetchAnalysis() {
+		// ... (fetchAnalysis, refreshAnalysis, clearCache 方法不变)
+		async fetchAnalysis() {
 			if (!this.targetJob.trim()) {
 				uni.showToast({
 					title: '请先输入或选择目标岗位',
@@ -171,39 +212,30 @@ async fetchAnalysis() {
 				if (cachedData) {
 					console.log(`[Frontend Cache] 找到本地缓存，岗位: ${this.targetJob}`);
 					this.analysisResult = cachedData;
-					uni.showToast({
-						title: '加载缓存结果',
-						icon: 'success'
-					});
-					return; // 直接返回缓存结果
-				}
-
-				// 2. 如果没有缓存，调用后端 API
-				console.log(`[API] 调用后端 API 分析岗位: ${this.targetJob}`);
-				const res = await uni.request({
-					// 使用 GET 方式，让后端自己查询经历
-					url: `http://localhost:3000/api/capability-analysis?job=${encodeURIComponent(this.targetJob.trim())}`,
-					method: 'GET'
-				});
-
-				// --- 修改开始 ---
-				// 检查 HTTP 状态码
-				if (res.statusCode === 200) { // 直接使用 res.statusCode
-					this.analysisResult = res.data; // 直接使用 res.data
-					// 3. 将新结果存入本地存储
-					uni.setStorageSync(cacheKey, this.analysisResult);
-					console.log(`[Frontend Cache] 分析结果已缓存到本地，岗位: ${this.targetJob}`);
-					uni.showToast({
-						title: '分析完成',
-						icon: 'success'
-					});
+					// 不再 return，因为 onReady 或 watch 会处理图表渲染
+					// return; 
 				} else {
-					// 如果 HTTP 状态码不是 200
-					throw new Error(res.data?.error || `HTTP Error: ${res.statusCode}`);
+					// 2. 如果没有缓存，调用后端 API
+					console.log(`[API] 调用后端 API 分析岗位: ${this.targetJob}`);
+					const res = await uni.request({
+						url: `http://localhost:3000/api/capability-analysis?job=${encodeURIComponent(this.targetJob.trim())}`,
+						method: 'GET'
+					});
+
+					if (res.statusCode === 200) {
+						this.analysisResult = res.data;
+						// 3. 将新结果存入本地存储
+						uni.setStorageSync(cacheKey, this.analysisResult);
+						console.log(`[Frontend Cache] 分析结果已缓存到本地，岗位: ${this.targetJob}`);
+						uni.showToast({
+							title: '分析完成',
+							icon: 'success'
+						});
+					} else {
+						throw new Error(res.data?.error || `HTTP Error: ${res.statusCode}`);
+					}
 				}
-				// --- 修改结束 ---
 			} catch (err) {
-				// 捕获网络错误或上面 throw 的错误
 				console.error('获取能力分析失败:', err);
 				this.error = err.message || '获取分析结果失败';
 				uni.showToast({
@@ -216,6 +248,133 @@ async fetchAnalysis() {
 			}
 		},
 
+		async initChartAndRender(capabilities) {
+			// ... (initChartAndRender 的逻辑不变)
+			if (!capabilities || capabilities.length === 0) {
+				console.warn('没有能力数据可渲染图表');
+				return;
+			}
+
+			try {
+				await this.$nextTick(); 
+				const context = uni.createCanvasContext(this.canvasId, this);
+
+				const categories = capabilities.map(item => item.name);
+				const levels = capabilities.map(item => this.getNumericLevel(item.level));
+				console.log(categories)
+				console.log('uCharts 版本:', uCharts.version);
+				const chartConfig = {
+					type: 'radar',
+					  // ✅ 图例部分
+					legend: {
+						show: true,
+						position: 'bottom',
+						float: 'center',
+						itemGap: 10,
+						padding: 5,
+						margin: 10,
+						backgroundColor: 'rgba(255,255,255,0)',
+						borderColor: 'rgba(0,0,0,0)',
+						borderWidth: 0,
+						fontColor: '#333333',
+						lineHeight: 16,
+						format: (name) => `${name}`
+					},
+					dataLabel: true,
+					background: '#FFFFFF',
+					pixelRatio: 1,
+					rotate: false,
+					categories: categories,
+					series: [{
+						name: '能力水平',
+						data: levels,
+						color: '#667eea',
+					}],
+					animation: true,
+					width: this.chartWidth,
+					height: this.chartHeight,
+					context: context,
+					canvasId: this.canvasId,
+					extra: {
+					  radar: {
+						max: 4,
+						gridType: 'radar',
+						gridColor: '#CCCCCC',
+						gridSize: 1,
+						labelColor: '#333333', // ✅ 设置标签颜色
+						labelFontSize: 12,     // ✅ 标签字号
+						labelShow: true,
+					  },
+					}
+				};
+
+				if (this.chartInstance) {
+					this.chartInstance.dispose();
+					this.chartInstance = new uCharts(chartConfig);
+				} else {
+					this.chartInstance = new uCharts(chartConfig);
+				}
+			} catch (err) {
+				console.error('初始化图表或获取 context 失败:', err);
+				uni.showToast({
+					title: '图表初始化失败',
+					icon: 'none',
+					duration: 2000
+				});
+			}
+		},
+
+		// 修改 renderChart 方法，只负责调用 initChartAndRender (因为尺寸和 context 都由 initChartAndRender 处理)
+		// 现在 renderChart 只在 watch 中，且 pageReady 为 true 时被调用
+		renderChart(capabilities) {
+			// 直接调用 initChartAndRender，因为 watch 保证了 pageReady 为 true
+			if (capabilities && capabilities.length > 0) {
+				this.initChartAndRender(capabilities);
+			} else if (this.chartInstance) {
+				// 数据为空时，清空图表
+				this.chartInstance.dispose();
+				this.chartInstance = null;
+			}
+		},
+
+
+		// 将能力水平字符串转换为数字，用于图表渲染
+		getNumericLevel(levelStr) {
+			// 根据你的后端返回格式调整
+			if (levelStr.includes('精通')) return 4;
+			if (levelStr.includes('熟练')) return 3;
+			if (levelStr.includes('了解')) return 2;
+			if (levelStr.includes('缺失')) return 1;
+			return 0; // 未知级别
+		},
+
+		// uCharts 触摸事件处理 (必须)
+		touchStart(e) {
+			if (this.chartInstance) {
+				this.chartInstance.showToolTip(e, {
+					format: (item, category) => {
+						// 自定义 tooltip 显示内容
+						const originalLevel = this.analysisResult.capabilities.find(cap => cap.name === category)?.level;
+						return `${category}: ${item.data} (${originalLevel})`;
+					}
+				});
+			}
+		},
+		touchMove(e) {
+			if (this.chartInstance) {
+				this.chartInstance.showToolTip(e, {
+					format: (item, category) => {
+						const originalLevel = this.analysisResult.capabilities.find(cap => cap.name === category)?.level;
+						return `${category}: ${item.data} (${originalLevel})`;
+					}
+				});
+			}
+		},
+		touchEnd(e) {
+			// 通常不需要特殊处理
+		},
+
+		// ... (其他方法不变)
 		async refreshAnalysis() {
 			if (!this.targetJob.trim()) {
 				uni.showToast({
@@ -224,9 +383,7 @@ async fetchAnalysis() {
 				});
 				return;
 			}
-			// 清除本地缓存
 			await this.clearCache();
-			// 重新获取
 			this.fetchAnalysis();
 		},
 
@@ -240,14 +397,18 @@ async fetchAnalysis() {
 			}
 			const cacheKey = this.getCacheKey(this.targetJob.trim());
 			try {
-				uni.removeStorageSync(cacheKey); // 删除本地缓存
+				uni.removeStorageSync(cacheKey);
 				console.log(`[Frontend Cache] 已清除本地缓存，岗位: ${this.targetJob}`);
 				uni.showToast({
 					title: '缓存已清除',
 					icon: 'success'
 				});
-				// 清除本地数据，准备重新获取
 				this.analysisResult = null;
+				// 清除图表实例
+				if (this.chartInstance) {
+					this.chartInstance.dispose();
+					this.chartInstance = null;
+				}
 			} catch (err) {
 				console.error('清除本地缓存失败:', err);
 				uni.showToast({
@@ -257,25 +418,11 @@ async fetchAnalysis() {
 			}
 		},
 
-		// 如果使用 POST 方式且需要前端提供经历数据，实现此方法
-		// getCurrentExperiences() {
-		//   // 从你的全局状态管理（如 Vuex/Pinia）或通过 API 获取当前经历列表
-		//   // 示例：从本地存储获取经历（如果你在其他地方保存了）
-		//   const records = uni.getStorageSync('records') || []; // 假设经历在 'records' 中
-		//   // 需要将 records 格式化为 AI 分析函数期望的格式
-		//   return records.map(r => ({
-		//     category: r.categoryName, // 假设 categoryName 对应 category
-		//     summary: r.description || r.summary, // 假设 description 或 summary 对应 summary
-		//     confidence: r.confidence // 假设有 confidence 字段
-		//   }));
-		// },
-
-		// 根据能力水平返回对应的 CSS 类
 		getLevelClass(level) {
 			if (level.includes('精通') || level.includes('熟练')) return 'level-high';
 			if (level.includes('了解')) return 'level-medium';
 			if (level.includes('缺失')) return 'level-low';
-			return ''; // 其他情况无特殊样式
+			return '';
 		}
 	}
 }
@@ -299,10 +446,28 @@ async fetchAnalysis() {
 }
 
 .job-input {
-	border: 2rpx solid #e0e0e0;
-	border-radius: 12rpx;
-	padding: 20rpx;
-	font-size: 28rpx;
+    /* 原有样式 */
+    border: 2rpx solid #e0e0e0;
+    border-radius: 12rpx;
+    padding: 30rpx;
+    font-size: 30rpx;
+    pointer-events: auto;
+    outline: 3rpx solid rgba(102, 126, 234, 0.3);
+    outline-offset: 3rpx;
+
+    /* 新增/修改：自适应大小 */
+    width: 100%; /* 填充父容器宽度 */
+    min-height: 80rpx; /* 设置最小高度，容纳提示文字和一行输入 */
+    max-height: 200rpx; /* 设置最大高度，防止内容过多时撑开 */
+    height: auto; /* 让高度根据内容和 min/max 调整 */
+    resize: vertical; /* 允许用户垂直调整大小（可选） */
+    /* resize: none; */ /* 或者禁止用户调整大小 */
+
+    /* 保持文本框外观一致 */
+    background-color: white;
+    box-sizing: border-box; /* 确保 padding 和 border 包含在 width/height 内 */
+    line-height: 1.4; /* 设置行高，改善文字垂直居中感 */
+    overflow-y: auto; /* 当内容超过 max-height 时出现垂直滚动条 */
 }
 
 .analyze-btn {
@@ -416,75 +581,37 @@ async fetchAnalysis() {
 	flex: 1;
 }
 
-/* 雷达图模拟样式 */
-.radar-section {
+/* 图表区域样式 */
+.chart-section {
 	background-color: white;
 	border-radius: 20rpx;
 	padding: 30rpx;
 }
 
-.radar-container {
+.chart-container {
 	background-color: #fafafa;
 	border-radius: 16rpx;
 	padding: 20rpx;
-}
-
-.radar-list {
 	display: flex;
-	flex-direction: column;
-	gap: 15rpx;
+	justify-content: center; /* 居中显示图表 */
+	align-items: center; /* 垂直居中 */
+	min-height: 440rpx; /* 设置最小高度，防止图表区域塌陷 */
 }
 
-.radar-item {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding: 15rpx;
-	background-color: white;
-	border-radius: 12rpx;
-	border-left: 6rpx solid #667eea;
+.q-charts {
+	width: 100%;
+	height: 100%;
 }
 
-.radar-item-left {
-	flex: 1;
+.empty-chart {
+	text-align: center;
+	width: 100%;
+	padding: 60rpx 0;
 }
 
-.radar-name {
-	font-size: 28rpx;
-	font-weight: bold;
-	color: #333;
-	display: block;
-}
-
-.radar-relevance {
-	font-size: 24rpx;
+.empty-text {
 	color: #999;
-}
-
-.radar-item-right {
-	text-align: right;
-}
-
-.radar-level {
-	font-size: 24rpx;
-	font-weight: bold;
-	padding: 6rpx 12rpx;
-	border-radius: 16rpx;
-}
-
-.level-high {
-	background-color: #d4edda;
-	color: #155724;
-}
-
-.level-medium {
-	background-color: #fff3cd;
-	color: #856404;
-}
-
-.level-low {
-	background-color: #f8d7da;
-	color: #721c24;
+	font-size: 28rpx;
 }
 
 /* 详细能力列表样式 */
