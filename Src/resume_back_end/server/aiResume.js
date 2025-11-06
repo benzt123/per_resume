@@ -1,7 +1,7 @@
 // server/aiResume.js
 const axios = require('axios');
 
-const DASHSCOPE_API_KEY = 'sk-3d53078d313946a69f5f7489bebeb9a7'; // 替换为真实 key
+const DASHSCOPE_API_KEY = '替换为阿里云真实 key'; // 替换为真实 key
 const MODEL = 'qwen3-max';
 
 function buildResumePrompt(job, profile, experiences) {
