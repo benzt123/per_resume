@@ -1,7 +1,7 @@
 // server/ai.js
 const axios = require('axios');
 
-const DASHSCOPE_API_KEY = 'sk-154d2584db014ddb8223ba955e7632ce'; // 替换为真实 key
+const DASHSCOPE_API_KEY = '替换为阿里云真实 key'; // 替换为真实 key
 const MODEL = 'qwen3-max';
 
 async function analyzeWithQwen(text) {
